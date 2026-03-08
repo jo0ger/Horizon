@@ -93,6 +93,16 @@
           "channel": "zaihuapd",
           "enabled": true,
           "fetch_limit": 20
+        },
+        {
+          "channel": "AI_News_CN",
+          "enabled": true,
+          "fetch_limit": 20
+        },
+        {
+          "channel": "kejiquchat",
+          "enabled": true,
+          "fetch_limit": 20
         }
       ]
     }
