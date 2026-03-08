@@ -11,6 +11,7 @@ from rich.console import Console
 
 from .models import Config, ContentItem
 from .storage.manager import StorageManager
+from .services.emailer import EmailManager
 from .scrapers.github import GitHubScraper
 from .scrapers.hackernews import HackerNewsScraper
 from .scrapers.rss import RSSScraper
@@ -35,6 +36,7 @@ class HorizonOrchestrator:
         self.config = config
         self.storage = storage
         self.console = Console()
+        self.email_manager = EmailManager(config.email, console=self.console) if config.email else None
 
     async def run(self, force_hours: int = None, force_source: List[str] = None) -> None:
         """Execute the complete workflow.
@@ -43,6 +45,11 @@ class HorizonOrchestrator:
             force_hours: Optional override for time window in hours
         """
         self.console.print("[bold cyan]🌅 Horizon - Starting aggregation...[/bold cyan]\n")
+
+        # Check email subscriptions if configured
+        if self.email_manager and self.config.email and self.config.email.enabled:
+            self.console.print("📧 Checking for new email subscriptions...")
+            self.email_manager.check_subscriptions(self.storage)
 
         try:
             # 1. Determine time window
@@ -58,7 +65,7 @@ class HorizonOrchestrator:
                 return
 
             # 3. Merge cross-source duplicates (same URL from different sources)
-            merged_items = self._merge_cross_source_duplicates(all_items)
+            merged_items = self.merge_cross_source_duplicates(all_items)
             if len(merged_items) < len(all_items):
                 self.console.print(
                     f"🔗 Merged {len(all_items) - len(merged_items)} cross-source duplicates "
@@ -82,7 +89,7 @@ class HorizonOrchestrator:
             )
 
             # 5.5 Semantic deduplication: drop items covering the same topic
-            deduped_items = self._merge_topic_duplicates(important_items)
+            deduped_items = self.merge_topic_duplicates(important_items)
             if len(deduped_items) < len(important_items):
                 self.console.print(
                     f"🧹 Removed {len(important_items) - len(deduped_items)} topic duplicates "
@@ -146,6 +153,13 @@ class HorizonOrchestrator:
                 except Exception as e:
                     self.console.print(f"[yellow]⚠️  Failed to copy {lang.upper()} summary to docs/: {e}[/yellow]\n")
 
+                # Send email if configured
+                if self.email_manager and self.config.email and self.config.email.enabled:
+                    self.console.print(f"📧 Sending {lang.upper()} email summary...")
+                    subscribers = self.storage.load_subscribers()
+                    subject = f"Horizon Summary ({lang.upper()}) - {today}"
+                    self.email_manager.send_daily_summary(summary, subject, subscribers)
+
             self.console.print("[bold green]✅ Horizon completed successfully![/bold green]")
 
         except Exception as e:
@@ -162,6 +176,8 @@ class HorizonOrchestrator:
 
     async def _fetch_all_sources(self, since: datetime, source: List[str] = None) -> List[ContentItem]:
         """Fetch content from all configured sources.
+
+        This is a stable stage entry point for integrations such as MCP.
 
         Args:
             since: Fetch items published after this time
@@ -249,8 +265,10 @@ class HorizonOrchestrator:
             return meta["repo"]
         return item.author or "unknown"
 
-    def _merge_cross_source_duplicates(self, items: List[ContentItem]) -> List[ContentItem]:
+    def merge_cross_source_duplicates(self, items: List[ContentItem]) -> List[ContentItem]:
         """Merge items that point to the same URL from different sources.
+
+        This is a stable stage helper for integrations such as MCP.
 
         Keeps the item with the richest content and combines metadata.
 
@@ -313,28 +331,6 @@ class HorizonOrchestrator:
             tokens.add(cjk[i:i + 2])
         return tokens
 
-    def _merge_topic_duplicates(
-        self, items: List[ContentItem], threshold: float = 0.33
-    ) -> List[ContentItem]:
-        """Drop lower-scored items that cover the same topic as a higher-scored one.
-
-        Items must already be sorted by ai_score descending.
-        Uses Jaccard similarity on ASCII words + CJK bigrams of the original title.
-        """
-        kept: List[ContentItem] = []
-        for item in items:
-            tokens = self._title_tokens(item.title)
-            for accepted in kept:
-                a = self._title_tokens(accepted.title)
-                union = a | tokens
-                if not union:
-                    continue
-                if len(a & tokens) / len(union) >= threshold:
-                    break
-            else:
-                kept.append(item)
-        return kept
-
     @staticmethod
     def _merge_item_content(primary: ContentItem, secondary: ContentItem) -> None:
         """Append secondary's scraped content (comments) into primary."""
@@ -345,10 +341,12 @@ class HorizonOrchestrator:
         label = secondary.source_type.value
         primary.content = (primary.content or "") + f"\n\n--- From {label} ---\n{secondary.content}"
 
-    def _merge_topic_duplicates(
+    def merge_topic_duplicates(
         self, items: List[ContentItem], threshold: float = 0.33
     ) -> List[ContentItem]:
         """Merge items covering the same topic into the highest-scored one.
+
+        This is a stable stage helper for integrations such as MCP.
 
         Two items are considered duplicates when either:
           - Title token Jaccard >= threshold, or

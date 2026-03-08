@@ -131,6 +131,20 @@ class SourcesConfig(BaseModel):
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
 
 
+class EmailConfig(BaseModel):
+    """Email configuration for updates/subscriptions."""
+    imap_server: str
+    imap_port: int = 993
+    smtp_server: str
+    smtp_port: int = 465
+    email_address: str
+    password_env: str = "EMAIL_PASSWORD"
+    sender_name: str = "Horizon Daily"
+    subscribe_keyword: str = "SUBSCRIBE"
+    unsubscribe_keyword: str = "UNSUBSCRIBE"
+    enabled: bool = False
+
+
 class FilteringConfig(BaseModel):
     """Content filtering configuration."""
 
@@ -145,3 +159,4 @@ class Config(BaseModel):
     ai: AIConfig
     sources: SourcesConfig
     filtering: FilteringConfig
+    email: Optional[EmailConfig] = None
