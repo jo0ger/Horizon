@@ -1,6 +1,7 @@
 """Content analysis using AI."""
 
 import json
+import sys
 from typing import List
 from tenacity import retry, stop_after_attempt, wait_exponential
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, MofNCompleteColumn
@@ -111,7 +112,7 @@ class ContentAnalyzer:
             content_section=content_section,
             discussion_section=discussion_section
         )
-
+        
         # Get AI completion
         response = await self.client.complete(
             system=CONTENT_ANALYSIS_SYSTEM,

@@ -36,7 +36,7 @@ class HorizonOrchestrator:
         self.storage = storage
         self.console = Console()
 
-    async def run(self, force_hours: int = None) -> None:
+    async def run(self, force_hours: int = None, force_source: List[str] = None) -> None:
         """Execute the complete workflow.
 
         Args:
@@ -50,7 +50,7 @@ class HorizonOrchestrator:
             self.console.print(f"📅 Fetching content since: {since.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
             # 2. Fetch content from all sources
-            all_items = await self._fetch_all_sources(since)
+            all_items = await self._fetch_all_sources(since, force_source)
             self.console.print(f"📥 Fetched {len(all_items)} items from all sources\n")
 
             if not all_items:
@@ -64,7 +64,7 @@ class HorizonOrchestrator:
                     f"🔗 Merged {len(all_items) - len(merged_items)} cross-source duplicates "
                     f"→ {len(merged_items)} unique items\n"
                 )
-
+                
             # 4. Analyze with AI
             analyzed_items = await self._analyze_content(merged_items)
             self.console.print(f"🤖 Analyzed {len(analyzed_items)} items with AI\n")
@@ -160,7 +160,7 @@ class HorizonOrchestrator:
             since = datetime.now(timezone.utc) - timedelta(hours=hours)
         return since
 
-    async def _fetch_all_sources(self, since: datetime) -> List[ContentItem]:
+    async def _fetch_all_sources(self, since: datetime, source: List[str] = None) -> List[ContentItem]:
         """Fetch content from all configured sources.
 
         Args:
@@ -173,27 +173,27 @@ class HorizonOrchestrator:
             tasks = []
 
             # GitHub sources
-            if self.config.sources.github:
+            if self.config.sources.github and (source == None or "github" in source):
                 github_scraper = GitHubScraper(self.config.sources.github, client)
                 tasks.append(self._fetch_with_progress("GitHub", github_scraper, since))
 
             # Hacker News
-            if self.config.sources.hackernews.enabled:
+            if self.config.sources.hackernews.enabled and (source == None or "hackernews" in source):
                 hn_scraper = HackerNewsScraper(self.config.sources.hackernews, client)
                 tasks.append(self._fetch_with_progress("Hacker News", hn_scraper, since))
 
             # RSS feeds
-            if self.config.sources.rss:
+            if self.config.sources.rss and (source == None or "rss" in source):
                 rss_scraper = RSSScraper(self.config.sources.rss, client)
                 tasks.append(self._fetch_with_progress("RSS Feeds", rss_scraper, since))
 
             # Reddit
-            if self.config.sources.reddit.enabled:
+            if self.config.sources.reddit.enabled and (source == None or "reddit" in source):
                 reddit_scraper = RedditScraper(self.config.sources.reddit, client)
                 tasks.append(self._fetch_with_progress("Reddit", reddit_scraper, since))
 
             # Telegram
-            if self.config.sources.telegram.enabled:
+            if self.config.sources.telegram.enabled and (source == None or "telegram" in source):
                 telegram_scraper = TelegramScraper(self.config.sources.telegram, client)
                 tasks.append(self._fetch_with_progress("Telegram", telegram_scraper, since))
 
