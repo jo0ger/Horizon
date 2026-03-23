@@ -18,6 +18,7 @@
 ![Gemini](https://img.shields.io/badge/Gemini-8E75B2?style=flat-square&logo=google&logoColor=white)
 ![DeepSeek](https://img.shields.io/badge/DeepSeek-0A6DC2?style=flat-square)
 ![Doubao](https://img.shields.io/badge/Doubao-00D6C2?style=flat-square)
+![MiniMax](https://img.shields.io/badge/MiniMax-FF6F00?style=flat-square)
 ![OpenClaw](https://img.shields.io/badge/OpenClaw-C83232?style=flat-square)
 
 Horizon 从多个可自定义的信息源中收集新闻，利用 AI 对新闻进行打分与过滤，最终生成一份包含摘要、社区讨论和背景知识的中英双语日报。
@@ -63,7 +64,7 @@ Horizon 通过 **AI 自动打分过滤** + **背景知识补充** + **社区评�
 ## 功能特性
 
 - **📡 多源聚合** — 从 Hacker News、RSS、Reddit、Telegram 频道和 GitHub（Release 与用户动态）收集内容
-- **🤖 AI 智能打分** — 支持 Claude、GPT-4、Gemini、DeepSeek、豆包（Doubao）及任何 OpenAI 兼容 API，对每条内容评分 0-10，过滤噪声
+- **🤖 AI 智能打分** — 支持 Claude、GPT-4、Gemini、DeepSeek、豆包（Doubao）、MiniMax 及任何 OpenAI 兼容 API，对每条内容评分 0-10，过滤噪声
 - **🌐 中英双语日报** — 同时生成英文和中文版本的每日摘要
 - **🔍 背景知识补充** — 自动搜索网络，为新闻中的陌生概念提供解释，降低阅读门槛
 - **💬 社区声音** — 收集并汇总来自 HackerNews、Reddit 等评论区的社区讨论
@@ -141,7 +142,7 @@ cp data/config.example.json data/config.json  # 自定义信息源
 ```jsonc
 {
   "ai": {
-    "provider": "doubao",       // 支持 "openai", "anthropic", "gemini", "doubao"
+    "provider": "doubao",       // 支持 "openai", "anthropic", "gemini", "doubao", "minimax"
     "model": "doubao-1-5-pro-256k",
     "api_key_env": "DOUBAO_API_KEY",
     "languages": ["en", "zh"]   // 中英双语输出
@@ -216,7 +217,7 @@ uv run horizon-mcp
 ## 路线图
 
 - [x] 多源聚合（HN、RSS、Reddit、Telegram、GitHub）
-- [x] 多 AI 模型打分（Claude、GPT-4、Gemini、DeepSeek、豆包）
+- [x] 多 AI 模型打分（Claude、GPT-4、Gemini、DeepSeek、豆包、MiniMax）
 - [x] 中英双语日报生成
 - [x] 网络搜索补充背景知识
 - [x] 社区讨论收集
@@ -225,6 +226,8 @@ uv run horizon-mcp
 - [x] **MCP Server 集成**
 - [x] GitHub Pages 部署
 - [x] Web UI 仪表板
+- [ ] **智能信息源配置向导** — 通过对话了解用户兴趣（如"我关注具身智能"），自动推荐并配置信息源
+- [ ] **Web 界面优化** — 改善日报汇总和新闻详情的展示体验
 - [ ] Slack / Webhook 通知
 - [ ] 更多信息源（Twitter/X、Discord 等）
 - [ ] 按信息源自定义打分 Prompt

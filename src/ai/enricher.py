@@ -6,9 +6,10 @@ For items that pass the score threshold, this module:
 """
 
 import json
+import re
 import sys
 import os
-from typing import List
+from typing import List, Optional
 from tenacity import retry, stop_after_attempt, wait_exponential
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, MofNCompleteColumn
 from ddgs import DDGS
@@ -73,6 +74,61 @@ class ContentEnricher:
             for r in (results or [])
         ]
 
+    @staticmethod
+    def _parse_json_response(response: str) -> Optional[dict]:
+        """Try multiple strategies to extract a JSON object from an AI response.
+
+        Returns the parsed dict, or None if all strategies fail.
+        """
+        text = response.strip()
+
+        # Strategy 1: direct parse
+        try:
+            return json.loads(text)
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # Strategy 2: extract from ```json ... ``` code block
+        if "```json" in text:
+            try:
+                json_str = text.split("```json")[1].split("```")[0].strip()
+                return json.loads(json_str)
+            except (json.JSONDecodeError, ValueError, IndexError):
+                pass
+
+        # Strategy 3: extract from ``` ... ``` code block
+        if "```" in text:
+            try:
+                json_str = text.split("```")[1].split("```")[0].strip()
+                return json.loads(json_str)
+            except (json.JSONDecodeError, ValueError, IndexError):
+                pass
+
+        # Strategy 4: find the first { ... } block using brace matching
+        start = text.find("{")
+        if start != -1:
+            depth = 0
+            for i in range(start, len(text)):
+                if text[i] == "{":
+                    depth += 1
+                elif text[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            return json.loads(text[start : i + 1])
+                        except (json.JSONDecodeError, ValueError):
+                            break
+
+        # Strategy 5: regex extraction as last resort
+        match = re.search(r"\{[\s\S]*\}", text)
+        if match:
+            try:
+                return json.loads(match.group())
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+        return None
+
     async def _extract_concepts(self, item: ContentItem, content_text: str) -> List[str]:
         """Ask AI to identify concepts that need explanation.
 
@@ -96,7 +152,9 @@ class ContentEnricher:
                 user=user_prompt,
                 temperature=0.3,
             )
-            result = json.loads(response.strip().strip("`").replace("json\n", "", 1))
+            result = self._parse_json_response(response)
+            if result is None:
+                return []
             queries = result.get("queries", [])
             return queries[:3]
         except Exception:
@@ -164,18 +222,13 @@ class ContentEnricher:
             temperature=0.4,
         )
 
-        # Parse JSON response
-        try:
-            result = json.loads(response)
-        except json.JSONDecodeError:
-            if "```json" in response:
-                json_str = response.split("```json")[1].split("```")[0].strip()
-                result = json.loads(json_str)
-            elif "```" in response:
-                json_str = response.split("```")[1].split("```")[0].strip()
-                result = json.loads(json_str)
-            else:
-                raise ValueError(f"Invalid JSON response: {response}")
+        # Parse JSON response with robust fallback
+        result = self._parse_json_response(response)
+        if result is None:
+            # Gracefully degrade: skip enrichment instead of raising
+            # (raising would trigger retries that won't help with a parse error)
+            print(f"Warning: could not parse enrichment response for {item.id}, skipping enrichment")
+            return
 
         # Combine structured sub-fields into per-language detailed_summary
         for lang in ("en", "zh"):

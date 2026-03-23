@@ -39,8 +39,10 @@ class AIProvider(str, Enum):
     """Supported AI providers."""
     ANTHROPIC = "anthropic"
     OPENAI = "openai"
+    ALI = "ali"
     GEMINI = "gemini"
     DOUBAO = "doubao"
+    MINIMAX = "minimax"
 
 
 class AIConfig(BaseModel):
