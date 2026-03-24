@@ -3,7 +3,7 @@
   "ai": {
     "provider": "doubao",
     "model": "doubao-seed-2.0-lite",
-    "base_url": "https://ark.cn-beijing.volces.com/api/coding/v3",
+    "base_url": "https://ark.cn-beijing.volces.com/api/coding",
     "api_key_env": "DOUBAO_API_KEY",
     "temperature": 0.3,
     "max_tokens": 8192,
