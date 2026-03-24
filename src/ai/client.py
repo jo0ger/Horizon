@@ -347,7 +347,7 @@ def create_ai_client(config: AIConfig) -> AIClient:
     elif config.provider == AIProvider.GEMINI:
         return GeminiClient(config)
     elif config.provider == AIProvider.DOUBAO:
-        return OpenAIClient(config)
+        return AnthropicClient(config)
     elif config.provider == AIProvider.MINIMAX:
         return MiniMaxClient(config)
     else:
