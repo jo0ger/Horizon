@@ -31,7 +31,7 @@ LABELS = {
             "- The AI score threshold is too high\n"
             "- Your information sources need expansion\n\n"
             "Consider:\n"
-            "1. Lowering the `ai_score_threshold` in config.json\n"
+            "1. Lowering the configured `ai_score_threshold`\n"
             "2. Adding more diverse information sources\n"
             "3. Checking if the AI model is working correctly\n"
         ),
@@ -49,7 +49,7 @@ LABELS = {
             "- AI 评分阈值设置过高\n"
             "- 信息源种类有待扩充\n\n"
             "建议：\n"
-            "1. 在 config.json 中降低 `ai_score_threshold`\n"
+            "1. 适当降低配置中的 `ai_score_threshold`\n"
             "2. 添加更多多样化的信息源\n"
             "3. 检查 AI 模型是否正常工作\n"
         ),
@@ -69,6 +69,7 @@ class DailySummarizer:
         date: str,
         total_fetched: int,
         language: str = "en",
+        industry_name: str | None = None,
     ) -> str:
         """Generate daily summary in Markdown format.
 
@@ -79,17 +80,19 @@ class DailySummarizer:
             date: Date string (YYYY-MM-DD)
             total_fetched: Total number of items fetched before filtering
             language: Output language, either "en" or "zh"
+            industry_name: Optional industry label to include in the title
 
         Returns:
             str: Markdown formatted summary
         """
         labels = LABELS.get(language, LABELS["en"])
+        header_title = self._header_title(labels["header"], language, industry_name)
 
         if not items:
-            return self._generate_empty_summary(date, total_fetched, labels)
+            return self._generate_empty_summary(date, total_fetched, labels, header_title)
 
         header = (
-            f"# {labels['header']} - {date}\n\n"
+            f"# {header_title} - {date}\n\n"
             f"> From {total_fetched} items, {len(items)} important content pieces were selected\n\n"
             "---\n\n"
         )
@@ -107,6 +110,19 @@ class DailySummarizer:
         parts = [self._format_item(item, labels, language, i + 1) for i, item in enumerate(items)]
 
         return header + toc + "".join(parts)
+
+    @staticmethod
+    def _header_title(base_header: str, language: str, industry_name: str | None) -> str:
+        if not industry_name:
+            return base_header
+
+        cleaned = industry_name.strip()
+        if not cleaned:
+            return base_header
+
+        if language == "zh":
+            return f"Horizon {cleaned}每日速递"
+        return f"Horizon {cleaned} Daily"
 
     def _format_item(self, item: ContentItem, labels: dict, language: str, index: int) -> str:
         """Format a single ContentItem into Markdown."""
@@ -186,10 +202,16 @@ class DailySummarizer:
 
         return "\n".join(lines) + "\n\n"
 
-    def _generate_empty_summary(self, date: str, total_fetched: int, labels: dict) -> str:
+    def _generate_empty_summary(
+        self,
+        date: str,
+        total_fetched: int,
+        labels: dict,
+        header_title: str,
+    ) -> str:
         """Generate summary when no high-scoring items were found."""
         return (
-            f"# {labels['header']} - {date}\n\n"
+            f"# {header_title} - {date}\n\n"
             f"> Analyzed {total_fetched} items, but none met the importance threshold.\n\n"
             + labels["empty_body"]
         )

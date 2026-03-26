@@ -16,18 +16,21 @@ from ddgs import DDGS
 
 from .client import AIClient
 from .prompts import (
-    CONCEPT_EXTRACTION_SYSTEM, CONCEPT_EXTRACTION_USER,
-    CONTENT_ENRICHMENT_SYSTEM, CONTENT_ENRICHMENT_USER,
+    CONCEPT_EXTRACTION_USER,
+    CONTENT_ENRICHMENT_USER,
+    build_concept_extraction_system,
+    build_content_enrichment_system,
 )
 from .utils import parse_json_response
-from ..models import ContentItem
+from ..models import Config, ContentItem
 
 
 class ContentEnricher:
     """Enriches high-scoring content items with background knowledge."""
 
-    def __init__(self, ai_client: AIClient):
+    def __init__(self, ai_client: AIClient, config: Config | None = None):
         self.client = ai_client
+        self.config = config
 
     async def enrich_batch(self, items: List[ContentItem]) -> None:
         """Enrich items in-place with background knowledge.
@@ -102,7 +105,7 @@ class ContentEnricher:
 
         try:
             response = await self.client.complete(
-                system=CONCEPT_EXTRACTION_SYSTEM,
+                system=build_concept_extraction_system(self.config),
                 user=user_prompt,
                 temperature=0.3,
             )
@@ -166,12 +169,12 @@ class ContentEnricher:
             reason=item.ai_reason or "",
             tags=", ".join(item.ai_tags) if item.ai_tags else "",
             content=content_text,
-            comments_section=f"\n**Community Comments:**\n{comments_text}" if comments_text else "",
-            web_context=web_context or "No web search results available.",
+            comments_section=f"\n**社区评论：**\n{comments_text}" if comments_text else "",
+            web_context=web_context or "无可用检索结果。",
         )
 
         response = await self.client.complete(
-            system=CONTENT_ENRICHMENT_SYSTEM,
+            system=build_content_enrichment_system(self.config),
             user=user_prompt,
             temperature=0.4,
         )

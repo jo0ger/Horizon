@@ -33,6 +33,7 @@ class HorizonRuntime:
     ContentAnalyzer: Any
     ContentEnricher: Any
     DailySummarizer: Any
+    load_runtime_config: Any
 
 
 def resolve_horizon_path(explicit: str | None = None) -> Path:
@@ -122,6 +123,7 @@ def load_runtime(horizon_path: Path) -> HorizonRuntime:
         analyzer = importlib.import_module("src.ai.analyzer")
         enricher = importlib.import_module("src.ai.enricher")
         summarizer = importlib.import_module("src.ai.summarizer")
+        config_loader = importlib.import_module("src.config_loader")
     except Exception as exc:  # pragma: no cover - import failure edge case
         raise HorizonMcpError(
             code="HZ_IMPORT_FAILED",
@@ -139,6 +141,7 @@ def load_runtime(horizon_path: Path) -> HorizonRuntime:
         ContentAnalyzer=analyzer.ContentAnalyzer,
         ContentEnricher=enricher.ContentEnricher,
         DailySummarizer=summarizer.DailySummarizer,
+        load_runtime_config=config_loader.load_runtime_config,
     )
 
 
@@ -156,11 +159,62 @@ def load_config(runtime: HorizonRuntime, config_path: Path) -> Any:
         ) from exc
 
 
-def make_storage(runtime: HorizonRuntime, config_path: Path) -> Any:
+def make_storage(
+    runtime: HorizonRuntime,
+    config_path: Path,
+    *,
+    storage_data_dir: Path | None = None,
+    config: Any | None = None,
+) -> Any:
     """Build Horizon storage manager bound to config's data directory."""
 
-    data_dir = str(config_path.parent.resolve())
-    return runtime.StorageManager(data_dir=data_dir)
+    data_dir = str(storage_data_dir.resolve()) if storage_data_dir else str(config_path.parent.resolve())
+    kwargs: dict[str, Any] = {
+        "data_dir": data_dir,
+        "root_dir": str(runtime.horizon_path),
+        "config_path": config_path,
+    }
+    if config is not None and getattr(config, "output", None):
+        kwargs["summaries_dir"] = config.output.summaries_dir
+    return runtime.StorageManager(**kwargs)
+
+
+def load_effective_config(
+    runtime: HorizonRuntime,
+    horizon_path: Path,
+    *,
+    config_path: str | None = None,
+    industry: str | None = None,
+    base_config_path: str | None = None,
+    industry_config_path: str | None = None,
+) -> Any:
+    """Load either legacy config or layered config through the target Horizon repo."""
+
+    try:
+        return runtime.load_runtime_config(
+            horizon_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
+            legacy_config_path=config_path,
+        )
+    except FileNotFoundError as exc:
+        raise HorizonMcpError(
+            code="HZ_CONFIG_NOT_FOUND",
+            message=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HorizonMcpError(
+            code="HZ_CONFIG_INVALID",
+            message="Failed to resolve effective config.",
+            details={
+                "config_path": config_path,
+                "industry": industry,
+                "base_config_path": base_config_path,
+                "industry_config_path": industry_config_path,
+                "error": str(exc),
+            },
+        ) from exc
 
 
 def make_orchestrator(runtime: HorizonRuntime, config: Any, storage: Any) -> Any:

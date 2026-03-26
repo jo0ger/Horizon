@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
+import re
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, HttpUrl, Field
 
@@ -154,6 +155,79 @@ class FilteringConfig(BaseModel):
     time_window_hours: int = 24
 
 
+class IndustryConfig(BaseModel):
+    """Industry metadata for a single pipeline run."""
+
+    id: str = "ai-tech"
+    name: str = "AI 科技"
+    slug: Optional[str] = None
+
+    def model_post_init(self, __context: Any) -> None:
+        if not self.slug:
+            normalized = self.id or self.name
+            self.slug = re.sub(r"[^a-z0-9]+", "-", normalized.lower()).strip("-") or "ai-tech"
+
+
+def _default_score_bands() -> Dict[str, List[str]]:
+    return {
+        "9_10": [
+            "行业格局变化、监管重大进展、关键产品发布、重要科研突破",
+            "对行业参与者产生直接、深远影响的事件",
+        ],
+        "7_8": [
+            "值得立即关注的重要报道、深度分析、关键产品/研究/运营变化",
+            "对行业判断、业务决策、技术路线有明显参考价值",
+        ],
+        "5_6": [
+            "增量更新、一般性教程、普通行业动态",
+            "了解即可，但不一定需要优先阅读",
+        ],
+        "3_4": [
+            "常规更新、泛泛而谈、信息量较低",
+            "对目标读者帮助有限",
+        ],
+        "0_2": [
+            "纯营销、无关内容、标题党、低质量搬运",
+            "缺少事实支撑或几乎没有有效信息",
+        ],
+    }
+
+
+class ProfileConfig(BaseModel):
+    """Industry-specific scoring and enrichment guidance."""
+
+    audience: str = "关注 AI、软件工程、开源基础设施与技术趋势的读者"
+    score_bands: Dict[str, List[str]] = Field(default_factory=_default_score_bands)
+    scoring_focus: List[str] = Field(
+        default_factory=lambda: [
+            "技术深度、原创性与信息密度",
+            "对 AI、开发者生态或产业趋势的潜在影响",
+            "信息源的可信度与表达质量",
+            "社区讨论是否提供了额外有效信号",
+        ]
+    )
+    downrank_if: List[str] = Field(
+        default_factory=lambda: [
+            "纯营销软文或缺乏事实支撑的宣传",
+            "对用户和行业影响极小的琐碎更新",
+            "与目标领域无关或信息密度过低的内容",
+        ]
+    )
+    concept_focus: str = (
+        "新闻中出现、但普通读者未必熟悉的技术名词、模型、协议、项目、框架、公司、产品或行业概念"
+    )
+    search_hints: List[str] = Field(default_factory=list)
+
+
+class OutputConfig(BaseModel):
+    """Output paths and publishing behavior."""
+
+    summaries_dir: str = "data/summaries"
+    docs_posts_dir: str = "docs/_posts"
+    publish_to_docs: bool = True
+    include_industry_in_filename: bool = False
+
+
 class Config(BaseModel):
     """Main configuration model."""
 
@@ -161,4 +235,7 @@ class Config(BaseModel):
     ai: AIConfig
     sources: SourcesConfig
     filtering: FilteringConfig
+    industry: IndustryConfig = Field(default_factory=IndustryConfig)
+    profile: ProfileConfig = Field(default_factory=ProfileConfig)
+    output: OutputConfig = Field(default_factory=OutputConfig)
     email: Optional[EmailConfig] = None

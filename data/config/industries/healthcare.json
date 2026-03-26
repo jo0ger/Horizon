@@ -1,0 +1,80 @@
+{
+  "industry": {
+    "id": "healthcare",
+    "name": "医疗",
+    "slug": "healthcare"
+  },
+  "sources": {
+    "github": [],
+    "hackernews": {
+      "enabled": false
+    },
+    "rss": [
+      {
+        "name": "STAT",
+        "url": "https://www.statnews.com/feed/",
+        "enabled": true,
+        "category": "healthcare"
+      }
+    ],
+    "reddit": {
+      "enabled": true,
+      "subreddits": [
+        {
+          "subreddit": "medicine",
+          "enabled": true,
+          "sort": "hot",
+          "time_filter": "day",
+          "fetch_limit": 15,
+          "min_score": 25
+        }
+      ],
+      "users": [],
+      "fetch_comments": 5
+    },
+    "telegram": {
+      "enabled": false,
+      "channels": []
+    }
+  },
+  "filtering": {
+    "ai_score_threshold": 7.5
+  },
+  "profile": {
+    "audience": "医疗从业者、医药投资人、研究人员，以及关注监管与产业动态的读者",
+    "score_bands": {
+      "9_10": [
+        "关键临床试验给出强证据，或出现重大监管审批、警示、指南更新",
+        "会显著影响患者治疗、医院决策、支付体系或产业格局的事件"
+      ],
+      "7_8": [
+        "重要试验结果、药品器械进展、政策变化或关键产业交易",
+        "对临床、投资或医药业务判断有明显参考价值"
+      ],
+      "5_6": [
+        "一般性研究进展、公司动态、行业观察或科普解读",
+        "值得了解，但暂时不足以改变实际决策"
+      ],
+      "3_4": [
+        "样本有限、证据较弱或影响范围较小的常规更新",
+        "信息密度有限，对一线决策帮助不大"
+      ],
+      "0_2": [
+        "夸大疗效、证据不足的宣传稿、标题党或不可靠解读",
+        "与临床、监管、支付或产业运行关系不大的噪声内容"
+      ]
+    },
+    "scoring_focus": [
+      "临床证据质量、样本规模与结论可信度",
+      "监管审批、警示、指南更新等关键里程碑",
+      "对医院、支付方、患者或医药产业链的实际影响"
+    ],
+    "downrank_if": [
+      "没有真实落地证据的厂商宣传",
+      "证据薄弱却夸大疗效或影响的表述",
+      "对行业运行几乎没有实际影响的常规公司动态"
+    ],
+    "concept_focus": "疾病领域、试验分期、药物靶点、支付与医保术语、医院工作流等医学与产业概念",
+    "search_hints": ["FDA", "EMA", "PubMed", "NEJM"]
+  }
+}

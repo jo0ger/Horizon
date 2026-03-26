@@ -36,9 +36,112 @@ The MCP layer does not reimplement Horizon business logic. It reuses the existin
 ```bash
 uv sync
 uv run horizon-mcp
+uv run horizon-mcp --industry healthcare
+uv run horizon-mcp --industry gaming --base-config data/config/base.json
 ```
 
-The server runs over stdio and is intended to be launched by an MCP client.
+The server runs over stdio and is intended to be launched by an MCP client. If you pass `--industry`, that layered config becomes the default context for all tool calls unless a tool call explicitly overrides it with `industry`, `base_config_path`, `industry_config_path`, or `config_path`.
+
+## Common Usage Patterns
+
+### Pattern A: Start the server with a default industry
+
+```bash
+uv run horizon-mcp --industry healthcare
+```
+
+Then tool calls can stay minimal because `healthcare` is already the default context:
+
+```json
+{
+  "tool": "hz_validate_config",
+  "arguments": {
+    "check_env": true
+  }
+}
+```
+
+```json
+{
+  "tool": "hz_run_pipeline",
+  "arguments": {
+    "hours": 24,
+    "save_to_horizon_data": true
+  }
+}
+```
+
+### Pattern B: Override the industry per tool call
+
+Keep the server generic:
+
+```bash
+uv run horizon-mcp
+```
+
+Then pass the layered config context explicitly:
+
+```json
+{
+  "tool": "hz_run_pipeline",
+  "arguments": {
+    "industry": "gaming",
+    "hours": 48,
+    "sources": ["rss", "reddit"],
+    "save_to_horizon_data": true
+  }
+}
+```
+
+### Pattern C: Use staged calls and let `run_id` carry the config context
+
+First fetch with an explicit industry:
+
+```json
+{
+  "tool": "hz_fetch_items",
+  "arguments": {
+    "industry": "healthcare",
+    "hours": 24
+  }
+}
+```
+
+Assume the response returns `run_id = "run-20260326-123456"`. The later stages can omit the industry because the service restores it from run metadata:
+
+```json
+{
+  "tool": "hz_score_items",
+  "arguments": {
+    "run_id": "run-20260326-123456"
+  }
+}
+```
+
+```json
+{
+  "tool": "hz_generate_summary",
+  "arguments": {
+    "run_id": "run-20260326-123456",
+    "language": "zh",
+    "save_to_horizon_data": true
+  }
+}
+```
+
+### Pattern D: Fall back to the legacy single-file config
+
+```json
+{
+  "tool": "hz_run_pipeline",
+  "arguments": {
+    "config_path": "data/config.json",
+    "hours": 24
+  }
+}
+```
+
+Do not combine `config_path` with `industry`, `base_config_path`, or `industry_config_path` in the same tool call.
 
 ## Run Artifacts
 

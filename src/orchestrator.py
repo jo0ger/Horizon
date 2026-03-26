@@ -112,47 +112,56 @@ class HorizonOrchestrator:
 
             # 7. Generate and save daily summaries for each configured language
             today = datetime.utcnow().strftime("%Y-%m-%d")
+            industry_slug = self.config.industry.slug if self.config.output.include_industry_in_filename else None
             for lang in self.config.ai.languages:
                 summary = await self._generate_summary(important_items, today, len(all_items), language=lang)
 
                 # Save to data/summaries/
-                summary_path = self.storage.save_daily_summary(today, summary, language=lang)
+                summary_path = self.storage.save_daily_summary(
+                    today,
+                    summary,
+                    language=lang,
+                    industry_slug=industry_slug,
+                )
                 self.console.print(f"💾 Saved {lang.upper()} summary to: {summary_path}\n")
 
                 # Copy to docs/ for GitHub Pages
-                try:
-                    from pathlib import Path
+                if self.config.output.publish_to_docs:
+                    try:
+                        if industry_slug:
+                            post_filename = f"{today}-{industry_slug}-summary-{lang}.md"
+                        else:
+                            post_filename = f"{today}-summary-{lang}.md"
+                        posts_dir = self.storage.resolve_path(self.config.output.docs_posts_dir)
+                        posts_dir.mkdir(parents=True, exist_ok=True)
 
-                    post_filename = f"{today}-summary-{lang}.md"
-                    posts_dir = Path("docs/_posts")
-                    posts_dir.mkdir(parents=True, exist_ok=True)
+                        dest_path = posts_dir / post_filename
+                        industry_title = f" - {self.config.industry.name}" if industry_slug else ""
 
-                    dest_path = posts_dir / post_filename
+                        # Add Jekyll front matter
+                        front_matter = (
+                            "---\n"
+                            "layout: default\n"
+                            f"title: \"Horizon Summary: {today} ({lang.upper()}){industry_title}\"\n"
+                            f"date: {today}\n"
+                            f"lang: {lang}\n"
+                            "---\n\n"
+                        )
 
-                    # Add Jekyll front matter
-                    front_matter = (
-                        "---\n"
-                        "layout: default\n"
-                        f"title: \"Horizon Summary: {today} ({lang.upper()})\"\n"
-                        f"date: {today}\n"
-                        f"lang: {lang}\n"
-                        "---\n\n"
-                    )
+                        # Strip leading H1 header to avoid duplication with Jekyll title
+                        summary_content = summary
+                        first_line = summary_content.strip().split("\n")[0]
+                        if first_line.startswith("# "):
+                            parts = summary_content.split("\n", 1)
+                            if len(parts) > 1:
+                                summary_content = parts[1].strip()
 
-                    # Strip leading H1 header to avoid duplication with Jekyll title
-                    summary_content = summary
-                    first_line = summary_content.strip().split("\n")[0]
-                    if first_line.startswith("# "):
-                        parts = summary_content.split("\n", 1)
-                        if len(parts) > 1:
-                            summary_content = parts[1].strip()
+                        with open(dest_path, "w", encoding="utf-8") as f:
+                            f.write(front_matter + summary_content)
 
-                    with open(dest_path, "w", encoding="utf-8") as f:
-                        f.write(front_matter + summary_content)
-
-                    self.console.print(f"📄 Copied {lang.upper()} summary to GitHub Pages: {dest_path}\n")
-                except Exception as e:
-                    self.console.print(f"[yellow]⚠️  Failed to copy {lang.upper()} summary to docs/: {e}[/yellow]\n")
+                        self.console.print(f"📄 Copied {lang.upper()} summary to GitHub Pages: {dest_path}\n")
+                    except Exception as e:
+                        self.console.print(f"[yellow]⚠️  Failed to copy {lang.upper()} summary to docs/: {e}[/yellow]\n")
 
                 # Send email if configured
                 if self.email_manager and self.config.email and self.config.email.enabled:
@@ -408,7 +417,7 @@ class HorizonOrchestrator:
 
         self.console.print("📚 Enriching with background knowledge...")
         ai_client = create_ai_client(self.config.ai)
-        enricher = ContentEnricher(ai_client)
+        enricher = ContentEnricher(ai_client, self.config)
         await enricher.enrich_batch(items)
         self.console.print(f"   Enriched {len(items)} items\n")
 
@@ -424,7 +433,7 @@ class HorizonOrchestrator:
         self.console.print("🤖 Analyzing content with AI...")
 
         ai_client = create_ai_client(self.config.ai)
-        analyzer = ContentAnalyzer(ai_client)
+        analyzer = ContentAnalyzer(ai_client, self.config)
 
         return await analyzer.analyze_batch(items)
 
@@ -449,5 +458,12 @@ class HorizonOrchestrator:
         self.console.print("📝 Generating daily summary...")
 
         summarizer = DailySummarizer()
+        industry_name = self.config.industry.name if getattr(self.config, "industry", None) else None
 
-        return await summarizer.generate_summary(items, date, total_fetched, language=language)
+        return await summarizer.generate_summary(
+            items,
+            date,
+            total_fetched,
+            language=language,
+            industry_name=industry_name,
+        )

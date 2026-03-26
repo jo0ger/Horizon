@@ -182,6 +182,43 @@ Content is scored 0-10:
 - `ai_score_threshold`: Only include content scoring >= this value
 - `time_window_hours`: Fetch content from last N hours
 
+## Industry Prompt Profile
+
+Use `profile` to steer how the AI scores, downranks, and explains content for a specific industry.
+
+```json
+{
+  "profile": {
+    "audience": "Healthcare operators, investors, and researchers",
+    "score_bands": {
+      "9_10": [
+        "Major regulatory approvals or strong late-stage clinical evidence",
+        "Events that materially change treatment decisions or market structure"
+      ],
+      "0_2": [
+        "Promotional claims with weak evidence",
+        "Low-signal items with little operational relevance"
+      ]
+    },
+    "scoring_focus": [
+      "Evidence quality, sample size, and decision relevance"
+    ],
+    "downrank_if": [
+      "The piece overstates impact without strong support"
+    ],
+    "concept_focus": "Trial phases, drug targets, reimbursement terms, and workflow concepts",
+    "search_hints": ["FDA", "PubMed", "NEJM"]
+  }
+}
+```
+
+- `audience`: who the summary is written for
+- `score_bands`: per-score-range examples inserted into the scoring prompt; supported keys are `9_10`, `7_8`, `5_6`, `3_4`, `0_2`
+- `scoring_focus`: what high-value items should emphasize
+- `downrank_if`: what should be penalized
+- `concept_focus`: what kinds of terms should trigger background lookups
+- `search_hints`: preferred sources when grounding background context
+
 ## Environment Variable Substitution
 
 RSS feed URLs support `${VAR_NAME}` syntax for secrets. The variable is expanded at runtime from environment variables (or `.env` file):

@@ -6,12 +6,14 @@ Start the built-in MCP server from the Horizon repository root:
 
 ```bash
 uv run horizon-mcp
+uv run horizon-mcp --industry healthcare
 ```
 
 If you need a Python module fallback:
 
 ```bash
 uv run python -m src.mcp.server
+uv run python -m src.mcp.server --industry healthcare
 ```
 
 ## Two Setup Modes
@@ -27,7 +29,7 @@ Example:
   "mcpServers": {
     "horizon": {
       "command": "uv",
-      "args": ["run", "horizon-mcp"],
+      "args": ["run", "horizon-mcp", "--industry", "healthcare"],
       "cwd": "/absolute/path/to/Horizon"
     }
   }
@@ -43,9 +45,143 @@ If your workflow allows you to start the MCP server manually, no absolute path i
 ```bash
 cd /absolute/path/to/Horizon
 uv run horizon-mcp
+uv run horizon-mcp --industry healthcare
 ```
 
 This is the cleanest way to avoid path values in client configuration.
+
+## Config Resolution
+
+Horizon MCP now supports both config modes:
+
+- Legacy single-file config via `config_path`
+- Layered config via `industry`, `base_config_path`, and `industry_config_path`
+
+Resolution priority is:
+
+1. Explicit tool call arguments
+2. MCP server startup defaults such as `uv run horizon-mcp --industry healthcare`
+3. Run metadata from earlier staged calls on the same `run_id`
+4. Legacy fallback to `data/config.json`
+
+## Tool Call Examples
+
+### Validate the effective healthcare config
+
+If the server was started with `--industry healthcare`, the tool call can stay short:
+
+```json
+{
+  "tool": "hz_validate_config",
+  "arguments": {
+    "check_env": true
+  }
+}
+```
+
+If the server was started without a default industry, pass it explicitly:
+
+```json
+{
+  "tool": "hz_validate_config",
+  "arguments": {
+    "industry": "healthcare",
+    "check_env": true
+  }
+}
+```
+
+### Run the full pipeline for one industry
+
+```json
+{
+  "tool": "hz_run_pipeline",
+  "arguments": {
+    "industry": "gaming",
+    "hours": 48,
+    "sources": ["rss", "reddit"],
+    "save_to_horizon_data": true
+  }
+}
+```
+
+### Run staged calls with `run_id` inheritance
+
+Step 1:
+
+```json
+{
+  "tool": "hz_fetch_items",
+  "arguments": {
+    "industry": "healthcare",
+    "hours": 24
+  }
+}
+```
+
+Step 2:
+
+```json
+{
+  "tool": "hz_score_items",
+  "arguments": {
+    "run_id": "run-20260326-123456"
+  }
+}
+```
+
+Step 3:
+
+```json
+{
+  "tool": "hz_filter_items",
+  "arguments": {
+    "run_id": "run-20260326-123456",
+    "topic_dedup": true
+  }
+}
+```
+
+Step 4:
+
+```json
+{
+  "tool": "hz_generate_summary",
+  "arguments": {
+    "run_id": "run-20260326-123456",
+    "language": "en",
+    "save_to_horizon_data": true
+  }
+}
+```
+
+### Override the config file paths explicitly
+
+```json
+{
+  "tool": "hz_run_pipeline",
+  "arguments": {
+    "industry": "healthcare",
+    "base_config_path": "data/config/base.json",
+    "industry_config_path": "data/config/industries/healthcare.json",
+    "hours": 24
+  }
+}
+```
+
+### Use the old single-file config
+
+```json
+{
+  "tool": "hz_run_pipeline",
+  "arguments": {
+    "config_path": "data/config.json",
+    "hours": 24
+  }
+}
+```
+
+Do not mix `config_path` with `industry`, `base_config_path`, or `industry_config_path`.
 
 ## Secret Files
 

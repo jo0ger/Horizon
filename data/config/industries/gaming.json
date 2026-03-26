@@ -1,0 +1,80 @@
+{
+  "industry": {
+    "id": "gaming",
+    "name": "游戏",
+    "slug": "gaming"
+  },
+  "sources": {
+    "github": [],
+    "hackernews": {
+      "enabled": false
+    },
+    "rss": [
+      {
+        "name": "Game Developer",
+        "url": "https://www.gamedeveloper.com/rss.xml",
+        "enabled": true,
+        "category": "gaming"
+      }
+    ],
+    "reddit": {
+      "enabled": true,
+      "subreddits": [
+        {
+          "subreddit": "games",
+          "enabled": true,
+          "sort": "hot",
+          "time_filter": "day",
+          "fetch_limit": 20,
+          "min_score": 50
+        }
+      ],
+      "users": [],
+      "fetch_comments": 5
+    },
+    "telegram": {
+      "enabled": false,
+      "channels": []
+    }
+  },
+  "filtering": {
+    "ai_score_threshold": 6.8
+  },
+  "profile": {
+    "audience": "游戏开发者、发行团队、行业分析师，以及关注平台与内容生态的读者",
+    "score_bands": {
+      "9_10": [
+        "头部游戏的上线、延期、停运，或主机平台和渠道政策的重大调整",
+        "会显著影响发行、渠道、工作室经营或玩家生态的关键事件"
+      ],
+      "7_8": [
+        "重点作品、主机平台、发行策略或商业化体系的重要变化",
+        "对开发计划、live-ops 或行业判断有明显参考价值"
+      ],
+      "5_6": [
+        "版本更新、市场观察、一般性行业动态或经验总结",
+        "值得关注，但不足以明显改变业务或内容判断"
+      ],
+      "3_4": [
+        "日常宣发、常规补丁、轻量观点或信息密度较低的内容",
+        "对从业者实际帮助有限"
+      ],
+      "0_2": [
+        "没有可靠来源的传闻、标题党或情绪化争议内容",
+        "纯营销节奏或对玩家和行业影响很小的碎片更新"
+      ]
+    },
+    "scoring_focus": [
+      "重点游戏的发布、延期、停运或重大版本变化",
+      "主机、渠道、发行平台与生态策略变化",
+      "工作室经营、开发工具链、商业化与 live-ops 的关键变化"
+    ],
+    "downrank_if": [
+      "没有可靠来源的爆料和标题党传闻",
+      "对玩家体验影响很小的常规皮肤或装饰更新",
+      "没有产品或业务实质变化的泛营销节奏内容"
+    ],
+    "concept_focus": "平台策略、商业化术语、中间件、引擎能力、live-ops 与发行运营相关概念",
+    "search_hints": ["Steam", "PlayStation", "Xbox", "Nintendo", "Game Developer"]
+  }
+}

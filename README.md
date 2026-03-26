@@ -110,19 +110,58 @@ cd horizon
 
 # Configure environment
 cp .env.example .env
-cp data/config.example.json data/config.json
-# Edit .env and data/config.json with your API keys and preferences
+# Edit .env with your API keys and provider settings
 
 # Run with Docker Compose
-docker-compose run --rm horizon
+docker-compose run --rm horizon --industry healthcare
 
 # Or run with custom time window
-docker-compose run --rm horizon --hours 48
+docker-compose run --rm horizon --industry healthcare --hours 48
 ```
 
 ### 2. Configure
 
-**Option A: Interactive wizard (recommended)**
+**Option A: Layered config for industry-specific runs (recommended)**
+
+Horizon now supports a shared base config plus one industry file per run:
+
+```text
+data/config/
+  base.json
+  industries/
+    ai-tech.json
+    healthcare.json
+    gaming.json
+```
+
+`base.json` stores shared runtime settings such as AI provider, thresholds, and output directories. Each industry file stores the source list plus industry-specific scoring guidance, including `profile.score_bands`, `scoring_focus`, and `downrank_if`. Example files ship with the repo:
+
+- `data/config/base.json`
+- `data/config/industries/ai-tech.json`
+- `data/config/industries/healthcare.json`
+- `data/config/industries/gaming.json`
+
+Typical setup:
+
+```bash
+cp .env.example .env
+# Edit data/config/base.json and data/config/industries/<industry>.json
+```
+
+Key output settings live under `output` in `base.json`:
+
+```jsonc
+{
+  "output": {
+    "summaries_dir": "data/summaries",
+    "docs_posts_dir": "docs/_posts",
+    "publish_to_docs": true,
+    "include_industry_in_filename": true
+  }
+}
+```
+
+**Option B: Interactive wizard (legacy single-file config)**
 
 ```bash
 uv run horizon-wizard
@@ -130,7 +169,7 @@ uv run horizon-wizard
 
 The wizard asks about your interests (e.g. "LLM inference", "嵌入式", "web security") and auto-generates `data/config.json` from a [curated preset library](https://thysrael.github.io/Horizon/presets) + optional AI recommendations.
 
-**Option B: Manual configuration**
+**Option C: Manual legacy configuration**
 
 ```bash
 cp .env.example .env          # Add your API keys
@@ -163,6 +202,23 @@ Here's what a config looks like:
   "filtering": {
     "ai_score_threshold": 6.0,
     "time_window_hours": 24
+  },
+  "profile": {
+    "audience": "AI engineers, software developers, and readers tracking tech shifts",
+    "score_bands": {
+      "9_10": [
+        "Breakthroughs in models, inference systems, or chip stacks",
+        "Events that materially change developer workflows or industry structure"
+      ],
+      "0_2": [
+        "Marketing-heavy content with little evidence",
+        "Low-signal posts with minimal relevance to the target domain"
+      ]
+    },
+    "scoring_focus": [
+      "Technical depth, originality, and information density",
+      "Potential impact on developers or the broader ecosystem"
+    ]
   }
 }
 ```
@@ -174,18 +230,38 @@ For the full reference, see the [Configuration Guide](docs/configuration.md).
 #### Local Installation
 
 ```bash
-uv run horizon           # Run with default 24h window
-uv run horizon --hours 48  # Fetch from last 48 hours
+uv run horizon --industry ai-tech                     # Run the default AI/tech config
+uv run horizon --industry healthcare                  # Run the healthcare config
+uv run horizon --industry gaming                      # Run the gaming config
+uv run horizon --industry healthcare --hours 48      # Override the time window
+uv run horizon --industry healthcare --source rss    # Restrict to selected sources
+uv run horizon --industry healthcare --source rss,reddit
+uv run horizon --industry healthcare --print-effective-config
+uv run horizon --industry healthcare --base-config data/config/base.json
+uv run horizon --industry healthcare --industry-config data/config/industries/healthcare.json
+
+# Legacy single-file mode remains available
+uv run horizon
+uv run horizon --hours 48
 ```
 
 #### With Docker
 
 ```bash
-docker-compose run --rm horizon           # Run with default 24h window
-docker-compose run --rm horizon --hours 48  # Fetch from last 48 hours
+docker-compose run --rm horizon --industry ai-tech
+docker-compose run --rm horizon --industry healthcare --hours 48
 ```
 
-The generated report will be saved to `data/summaries/`.
+Generated reports are saved to the directory configured in `output.summaries_dir`. When `include_industry_in_filename` is enabled, filenames look like `horizon-healthcare-2026-03-25-en.md`.
+
+#### Command Reference
+
+- `--industry <id>`: load `data/config/base.json` plus `data/config/industries/<id>.json`
+- `--base-config <path>`: override the default base config path
+- `--industry-config <path>`: override the default industry config path
+- `--hours <n>`: fetch the last `n` hours instead of the configured time window
+- `--source <csv>`: run only selected source types such as `rss,reddit`
+- `--print-effective-config`: print the merged config and exit
 
 ### 4. Automate (Optional)
 

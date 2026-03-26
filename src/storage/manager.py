@@ -3,6 +3,7 @@
 import json
 import shutil
 from pathlib import Path
+from typing import Optional
 
 from ..models import Config
 
@@ -10,13 +11,31 @@ from ..models import Config
 class StorageManager:
     """Manages file-based storage for configuration and state."""
 
-    def __init__(self, data_dir: str = "data"):
-        self.data_dir = Path(data_dir)
-        self.config_path = self.data_dir / "config.json"
-        self.summaries_dir = self.data_dir / "summaries"
+    def __init__(
+        self,
+        data_dir: str | Path = "data",
+        *,
+        root_dir: str | Path | None = None,
+        config_path: str | Path | None = None,
+        summaries_dir: str | Path | None = None,
+    ):
+        self.root_dir = Path(root_dir).resolve() if root_dir else Path.cwd().resolve()
+        self.data_dir = self.resolve_path(data_dir)
+        self.config_path = self.resolve_path(config_path) if config_path else self.data_dir / "config.json"
+        self.summaries_dir = self.resolve_path(summaries_dir or "data/summaries")
 
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.summaries_dir.mkdir(parents=True, exist_ok=True)
+
+    def resolve_path(self, raw_path: str | Path | None) -> Path:
+        if raw_path is None:
+            return self.root_dir
+        path = Path(raw_path).expanduser()
+        if not path.is_absolute():
+            path = (self.root_dir / path).resolve()
+        else:
+            path = path.resolve()
+        return path
 
     def load_config(self) -> Config:
         if not self.config_path.exists():
@@ -49,8 +68,16 @@ class StorageManager:
 
         return self.config_path
 
-    def save_daily_summary(self, date: str, markdown: str, language: str = "en") -> Path:
+    def save_daily_summary(
+        self,
+        date: str,
+        markdown: str,
+        language: str = "en",
+        industry_slug: Optional[str] = None,
+    ) -> Path:
         filename = f"horizon-{date}-{language}.md"
+        if industry_slug:
+            filename = f"horizon-{industry_slug}-{date}-{language}.md"
         filepath = self.summaries_dir / filename
 
         with open(filepath, "w", encoding="utf-8") as f:

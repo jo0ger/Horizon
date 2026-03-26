@@ -7,16 +7,17 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, MofNCompleteColumn
 
 from .client import AIClient
-from .prompts import CONTENT_ANALYSIS_SYSTEM, CONTENT_ANALYSIS_USER
+from .prompts import CONTENT_ANALYSIS_USER, build_content_analysis_system
 from .utils import parse_json_response
-from ..models import ContentItem
+from ..models import Config, ContentItem
 
 
 class ContentAnalyzer:
     """Analyzes content items using AI to determine importance."""
 
-    def __init__(self, ai_client: AIClient):
+    def __init__(self, ai_client: AIClient, config: Config | None = None):
         self.client = ai_client
+        self.config = config
 
     @staticmethod
     def _parse_json_response(response: str) -> Optional[dict]:
@@ -75,40 +76,40 @@ class ContentAnalyzer:
             content_text = item.content
             if "--- Top Comments ---" in content_text:
                 main, comments_part = content_text.split("--- Top Comments ---", 1)
-                content_section = f"Content: {main.strip()[:800]}"
+                content_section = f"正文: {main.strip()[:800]}"
             else:
-                content_section = f"Content: {content_text[:1000]}"
+                content_section = f"正文: {content_text[:1000]}"
 
         # Prepare discussion section (comments, engagement)
         discussion_parts = []
         if item.content and "--- Top Comments ---" in item.content:
             comments_part = item.content.split("--- Top Comments ---", 1)[1]
-            discussion_parts.append(f"Community Comments:\n{comments_part[:1500]}")
+            discussion_parts.append(f"社区评论：\n{comments_part[:1500]}")
 
         meta = item.metadata
         engagement_items = []
         if meta.get("score"):
-            engagement_items.append(f"score: {meta['score']}")
+            engagement_items.append(f"热度分: {meta['score']}")
         if meta.get("descendants"):
-            engagement_items.append(f"{meta['descendants']} comments")
+            engagement_items.append(f"{meta['descendants']} 条评论")
         if meta.get("favorite_count"):
-            engagement_items.append(f"{meta['favorite_count']} likes")
+            engagement_items.append(f"{meta['favorite_count']} 个赞")
         if meta.get("retweet_count"):
-            engagement_items.append(f"{meta['retweet_count']} retweets")
+            engagement_items.append(f"{meta['retweet_count']} 次转发")
         if meta.get("reply_count"):
-            engagement_items.append(f"{meta['reply_count']} replies")
+            engagement_items.append(f"{meta['reply_count']} 条回复")
         if meta.get("views"):
-            engagement_items.append(f"{meta['views']} views")
+            engagement_items.append(f"{meta['views']} 次浏览")
         if meta.get("bookmarks"):
-            engagement_items.append(f"{meta['bookmarks']} bookmarks")
+            engagement_items.append(f"{meta['bookmarks']} 次收藏")
         if meta.get("upvote_ratio"):
-            engagement_items.append(f"upvote ratio: {meta['upvote_ratio']:.0%}")
+            engagement_items.append(f"赞同比率: {meta['upvote_ratio']:.0%}")
         if engagement_items:
-            discussion_parts.append(f"Engagement: {', '.join(engagement_items)}")
+            discussion_parts.append(f"互动数据: {', '.join(engagement_items)}")
         if meta.get("discussion_url"):
-            discussion_parts.append(f"Discussion: {meta['discussion_url']}")
+            discussion_parts.append(f"讨论链接: {meta['discussion_url']}")
         if meta.get("community_note"):
-            discussion_parts.append(f"Community Note: {meta['community_note']}")
+            discussion_parts.append(f"社区备注: {meta['community_note']}")
 
         discussion_section = "\n".join(discussion_parts) if discussion_parts else ""
 
@@ -116,7 +117,7 @@ class ContentAnalyzer:
         user_prompt = CONTENT_ANALYSIS_USER.format(
             title=item.title,
             source=f"{item.source_type.value}",
-            author=item.author or "Unknown",
+            author=item.author or "未知",
             url=str(item.url),
             content_section=content_section,
             discussion_section=discussion_section
@@ -124,7 +125,7 @@ class ContentAnalyzer:
         
         # Get AI completion
         response = await self.client.complete(
-            system=CONTENT_ANALYSIS_SYSTEM,
+            system=build_content_analysis_system(self.config),
             user=user_prompt,
             temperature=0.3
         )

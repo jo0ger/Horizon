@@ -121,19 +121,58 @@ cd horizon
 
 # 配置环境
 cp .env.example .env
-cp data/config.example.json data/config.json
-# 编辑 .env 和 data/config.json，填入你的 API 密钥和偏好设置
+# 编辑 .env，填入你的 API 密钥和模型设置
 
 # 使用 Docker Compose 运行
-docker-compose run --rm horizon
+docker-compose run --rm horizon --industry healthcare
 
 # 或自定义时间窗口
-docker-compose run --rm horizon --hours 48
+docker-compose run --rm horizon --industry healthcare --hours 48
 ```
 
 ### 2. 配置
 
-**方式 A：交互式向导（推荐）**
+**方式 A：按行业分层配置（推荐）**
+
+Horizon 现在支持“公共基础配置 + 行业配置”的运行方式：
+
+```text
+data/config/
+  base.json
+  industries/
+    ai-tech.json
+    healthcare.json
+    gaming.json
+```
+
+`base.json` 用来保存公共运行配置，例如 AI 模型、默认阈值、输出目录。每个行业配置文件保存该行业自己的信息源和提示词侧重点，包括 `profile.score_bands`、`scoring_focus`、`downrank_if` 等。仓库中已经提供了示例：
+
+- `data/config/base.json`
+- `data/config/industries/ai-tech.json`
+- `data/config/industries/healthcare.json`
+- `data/config/industries/gaming.json`
+
+典型设置方式：
+
+```bash
+cp .env.example .env
+# 编辑 data/config/base.json 和 data/config/industries/<industry>.json
+```
+
+`base.json` 中与输出相关的配置示例：
+
+```jsonc
+{
+  "output": {
+    "summaries_dir": "data/summaries",
+    "docs_posts_dir": "docs/_posts",
+    "publish_to_docs": true,
+    "include_industry_in_filename": true
+  }
+}
+```
+
+**方式 B：交互式向导（旧版单文件配置）**
 
 ```bash
 uv run horizon-wizard
@@ -141,7 +180,7 @@ uv run horizon-wizard
 
 向导会询问你的兴趣（如"LLM 推理"、"嵌入式"、"web 安全"），自动从[预设源库](https://thysrael.github.io/Horizon/presets)匹配并生成 `data/config.json`，还可选让 AI 补充推荐小众源。
 
-**方式 B：手动配置**
+**方式 C：手动旧版配置**
 
 ```bash
 cp .env.example .env          # 添加 API 密钥
@@ -174,6 +213,23 @@ cp data/config.example.json data/config.json  # 自定义信息源
   "filtering": {
     "ai_score_threshold": 6.0,
     "time_window_hours": 24
+  },
+  "profile": {
+    "audience": "AI 工程师、软件开发者，以及关注技术趋势的读者",
+    "score_bands": {
+      "9_10": [
+        "基础模型、推理系统或芯片栈出现实质性突破",
+        "会显著改变开发者工作流、成本结构或行业竞争格局的关键事件"
+      ],
+      "0_2": [
+        "纯营销或缺乏事实支撑的内容",
+        "与目标领域关系较弱、信息密度很低的噪声内容"
+      ]
+    },
+    "scoring_focus": [
+      "技术深度、原创性与信息密度",
+      "对开发者生态或产业趋势的潜在影响"
+    ]
   }
 }
 ```
@@ -185,18 +241,38 @@ cp data/config.example.json data/config.json  # 自定义信息源
 #### 本地安装
 
 ```bash
-uv run horizon              # 使用默认 24 小时窗口
-uv run horizon --hours 48   # 抓取最近 48 小时的内容
+uv run horizon --industry ai-tech                     # 运行默认 AI 科技行业配置
+uv run horizon --industry healthcare                  # 运行医疗行业配置
+uv run horizon --industry gaming                      # 运行游戏行业配置
+uv run horizon --industry healthcare --hours 48      # 临时覆盖时间窗口
+uv run horizon --industry healthcare --source rss    # 只跑指定 source
+uv run horizon --industry healthcare --source rss,reddit
+uv run horizon --industry healthcare --print-effective-config
+uv run horizon --industry healthcare --base-config data/config/base.json
+uv run horizon --industry healthcare --industry-config data/config/industries/healthcare.json
+
+# 旧版单文件配置仍然可用
+uv run horizon
+uv run horizon --hours 48
 ```
 
 #### 使用 Docker
 
 ```bash
-docker-compose run --rm horizon              # 使用默认 24 小时窗口
-docker-compose run --rm horizon --hours 48   # 抓取最近 48 小时的内容
+docker-compose run --rm horizon --industry ai-tech
+docker-compose run --rm horizon --industry healthcare --hours 48
 ```
 
-生成的日报将保存在 `data/summaries/` 目录中。
+生成的日报会保存到 `output.summaries_dir` 配置对应的目录中。如果开启 `include_industry_in_filename`，文件名会像 `horizon-healthcare-2026-03-25-en.md` 这样带上行业标识。
+
+#### 命令参数说明
+
+- `--industry <id>`：加载 `data/config/base.json` 与 `data/config/industries/<id>.json`
+- `--base-config <path>`：覆盖默认基础配置路径
+- `--industry-config <path>`：覆盖默认行业配置路径
+- `--hours <n>`：临时指定抓取最近 `n` 小时的内容
+- `--source <csv>`：只运行指定 source，例如 `rss,reddit`
+- `--print-effective-config`：打印合并后的最终配置并退出
 
 ### 4. 自动化（可选）
 

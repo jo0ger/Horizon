@@ -1,0 +1,22 @@
+{
+  "version": "2.0",
+  "ai": {
+    "provider": "doubao",
+    "model": "doubao-seed-2.0-lite",
+    "base_url": "https://ark.cn-beijing.volces.com/api/coding",
+    "api_key_env": "DOUBAO_API_KEY",
+    "temperature": 0.3,
+    "max_tokens": 8192,
+    "languages": ["zh"]
+  },
+  "filtering": {
+    "ai_score_threshold": 7.0,
+    "time_window_hours": 24
+  },
+  "output": {
+    "summaries_dir": "data/summaries",
+    "docs_posts_dir": "docs/_posts",
+    "publish_to_docs": true,
+    "include_industry_in_filename": true
+  }
+}

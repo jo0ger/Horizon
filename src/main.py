@@ -2,12 +2,14 @@
 
 import argparse
 import asyncio
+import json
 import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 from rich.console import Console
 
+from .config_loader import load_runtime_config
 from .storage.manager import StorageManager
 from .orchestrator import HorizonOrchestrator
 
@@ -38,35 +40,56 @@ def main():
     parser = argparse.ArgumentParser(description="Horizon - AI-Driven Information Aggregation System")
     parser.add_argument("--hours", type=int, help="Force fetch from last N hours")
     parser.add_argument("--source", type=str, help="Force fetch from a specific source")
+    parser.add_argument("--industry", type=str, help="Load layered config for a specific industry")
+    parser.add_argument("--base-config", type=str, help="Override the default base config path")
+    parser.add_argument("--industry-config", type=str, help="Override the default industry config path")
+    parser.add_argument(
+        "--print-effective-config",
+        action="store_true",
+        help="Print the merged config and exit without running the pipeline",
+    )
     args = parser.parse_args()
 
     try:
         # Load environment variables from .env file
         load_dotenv()
 
-        # Ensure we're in the project directory or use data/ in current dir
-        data_dir = Path("data")
-
-        # Initialize storage manager
-        storage = StorageManager(data_dir=str(data_dir))
+        project_root = Path.cwd()
 
         # Load configuration
         try:
-            config = storage.load_config()
+            loaded = load_runtime_config(
+                project_root,
+                industry=args.industry,
+                base_config_path=args.base_config,
+                industry_config_path=args.industry_config,
+            )
+            config = loaded.config
         except FileNotFoundError:
             console.print("[bold red]❌ Configuration file not found![/bold red]\n")
             console.print(
-                "Run [bold cyan]uv run horizon-wizard[/bold cyan] to launch the interactive setup wizard,\n"
-                "or create [cyan]data/config.json[/cyan] manually based on the template:\n"
+                "Run [bold cyan]uv run horizon-wizard[/bold cyan] to create the legacy config,\n"
+                "or create [cyan]data/config/base.json[/cyan] and [cyan]data/config/industries/<industry>.json[/cyan].\n"
             )
             print_config_template()
             sys.exit(1)
         except Exception as e:
             console.print(f"[bold red]❌ Error loading configuration: {e}[/bold red]")
             sys.exit(1)
+
+        if args.print_effective_config:
+            console.print_json(json.dumps(config.model_dump(mode="json"), ensure_ascii=False, indent=2))
+            sys.exit(0)
+
+        storage = StorageManager(
+            data_dir=str(loaded.storage_data_dir),
+            root_dir=project_root,
+            config_path=loaded.config_path,
+            summaries_dir=config.output.summaries_dir,
+        )
         
-        if args.source != None:
-          args.source = args.source.split(",")
+        if args.source is not None:
+            args.source = [part.strip() for part in args.source.split(",") if part.strip()]
           
         # Create and run orchestrator
         orchestrator = HorizonOrchestrator(config, storage)
@@ -85,47 +108,46 @@ def main():
 def print_config_template():
     """Print configuration template."""
     template = """
+Recommended layered config:
+
+data/config/base.json
 {
-  "version": "1.0",
   "ai": {
-    "provider": "anthropic",
-    "model": "claude-sonnet-4.5-20250929",
-    "api_key_env": "ANTHROPIC_API_KEY",
-    "temperature": 0.3,
-    "max_tokens": 4096
-  },
-  "sources": {
-    "github": [
-      {
-        "type": "user_events",
-        "username": "torvalds",
-        "enabled": true
-      }
-    ],
-    "hackernews": {
-      "enabled": true,
-      "fetch_top_stories": 30,
-      "min_score": 100
-    },
-    "rss": [
-      {
-        "name": "Example Blog",
-        "url": "https://example.com/feed.xml",
-        "enabled": true,
-        "category": "software-engineering"
-      }
-    ]
+    "provider": "openai",
+    "model": "gpt-4",
+    "api_key_env": "OPENAI_API_KEY",
+    "languages": ["en", "zh"]
   },
   "filtering": {
-    "ai_score_threshold": 7.0,
+    "ai_score_threshold": 6.5,
     "time_window_hours": 24
+  },
+  "output": {
+    "summaries_dir": "data/summaries",
+    "docs_posts_dir": "docs/_posts",
+    "publish_to_docs": true,
+    "include_industry_in_filename": true
   }
 }
 
-Also create a .env file with:
-ANTHROPIC_API_KEY=your_api_key_here
-GITHUB_TOKEN=your_github_token_here (optional but recommended)
-"""
+data/config/industries/healthcare.json
+{
+  "industry": {
+    "id": "healthcare",
+    "name": "Healthcare",
+    "slug": "healthcare"
+  },
+  "sources": {
+    "rss": [
+      {
+        "name": "Example Feed",
+        "url": "https://example.com/feed.xml",
+        "enabled": true
+      }
+    ]
+  }
+}
+    """
     console.print(template)
 
 

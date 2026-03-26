@@ -1,0 +1,142 @@
+{
+  "industry": {
+    "id": "ai-tech",
+    "name": "AI 科技",
+    "slug": "ai-tech"
+  },
+  "sources": {
+    "github": [
+      {
+        "type": "user_events",
+        "username": "karpathy",
+        "enabled": true
+      },
+      {
+        "type": "repo_releases",
+        "owner": "vllm-project",
+        "repo": "vllm",
+        "enabled": true
+      },
+      {
+        "type": "repo_releases",
+        "owner": "sgl-project",
+        "repo": "sglang",
+        "enabled": true
+      },
+      {
+        "type": "repo_releases",
+        "owner": "triton-lang",
+        "repo": "triton",
+        "enabled": true
+      }
+    ],
+    "hackernews": {
+      "enabled": true,
+      "fetch_top_stories": 10,
+      "min_score": 200
+    },
+    "rss": [
+      {
+        "name": "Simon Willison",
+        "url": "https://simonwillison.net/atom/everything/",
+        "enabled": true,
+        "category": "ai-tools"
+      },
+      {
+        "name": "GitHub Trending - Daily",
+        "url": "https://mshibanami.github.io/GitHubTrendingRSS/daily/all.xml",
+        "enabled": true,
+        "category": "github-trending"
+      },
+      {
+        "name": "LWN.net",
+        "url": "https://lwn.net/headlines/full_text?key=${LWN_KEY}",
+        "enabled": true,
+        "category": "linux-kernel"
+      }
+    ],
+    "reddit": {
+      "enabled": true,
+      "subreddits": [
+        {
+          "subreddit": "MachineLearning",
+          "enabled": true,
+          "sort": "hot",
+          "time_filter": "day",
+          "fetch_limit": 15,
+          "min_score": 60
+        },
+        {
+          "subreddit": "LocalLLaMA",
+          "enabled": true,
+          "sort": "hot",
+          "time_filter": "day",
+          "fetch_limit": 15,
+          "min_score": 60
+        }
+      ],
+      "users": [],
+      "fetch_comments": 10
+    },
+    "telegram": {
+      "enabled": true,
+      "channels": [
+        {
+          "channel": "zaihuapd",
+          "enabled": true,
+          "fetch_limit": 20
+        },
+        {
+          "channel": "AI_News_CN",
+          "enabled": true,
+          "fetch_limit": 20
+        },
+        {
+          "channel": "kejiquchat",
+          "enabled": true,
+          "fetch_limit": 20
+        }
+      ]
+    }
+  },
+  "filtering": {
+    "ai_score_threshold": 7.0
+  },
+  "profile": {
+    "audience": "AI 工程师、软件开发者、基础设施从业者，以及关注技术趋势的读者",
+    "score_bands": {
+      "9_10": [
+        "基础模型、推理系统、编译器或芯片栈出现实质性突破",
+        "会显著改变开发者工作流、成本结构或产业竞争格局的关键发布与事件"
+      ],
+      "7_8": [
+        "重要模型、开源项目、推理框架、编排工具或开发工具链更新",
+        "对工程实践、部署效率或开源生态有明确影响的内容"
+      ],
+      "5_6": [
+        "增量迭代、经验总结、一般性行业动态或可参考教程",
+        "值得了解，但不足以明显改变技术判断或优先级"
+      ],
+      "3_4": [
+        "常规版本更新、泛观点评论、信息密度较低的轻量内容",
+        "更多是背景噪声或围观素材，对工程决策帮助有限"
+      ],
+      "0_2": [
+        "纯营销、搬运、标题党，或缺乏技术细节与事实支撑",
+        "与 AI、开发者生态或基础设施关系较弱，几乎没有实际参考价值"
+      ]
+    },
+    "scoring_focus": [
+      "模型、基础设施、编译器、推理框架与开发工具的重要进展",
+      "对开发者生态、开源社区或产业格局的潜在影响",
+      "技术深度、原创性、可验证性与实践价值"
+    ],
+    "downrank_if": [
+      "纯营销稿、缺乏技术细节的产品宣传",
+      "影响很小的例行更新或低信息密度内容",
+      "缺少事实支撑的情绪化判断或标题党"
+    ],
+    "concept_focus": "模型、框架、协议、芯片、编译器、推理系统、开源项目或行业术语等技术概念",
+    "search_hints": ["GitHub", "Hacker News", "OpenAI", "Anthropic", "Google AI", "NVIDIA"]
+  }
+}

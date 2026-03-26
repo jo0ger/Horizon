@@ -15,11 +15,10 @@ from .horizon_adapter import (
     get_enabled_sources,
     get_source_counts,
     items_to_dicts,
-    load_config,
+    load_effective_config,
     load_runtime,
     make_orchestrator,
     make_storage,
-    resolve_config_path,
     resolve_horizon_path,
 )
 from .run_store import RunStore
@@ -35,16 +34,47 @@ class PipelineContext:
 
     horizon_path: Path
     config_path: Path
+    storage_data_dir: Path
+    config_mode: str
+    base_config_path: Path | None
+    industry_config_path: Path | None
     runtime: Any
     config: Any
+
+
+@dataclass
+class ConfigSelection:
+    """Config selection inputs used to resolve a runtime context."""
+
+    horizon_path: str | None = None
+    config_path: str | None = None
+    industry: str | None = None
+    base_config_path: str | None = None
+    industry_config_path: str | None = None
 
 
 class HorizonPipelineService:
     """High-level staged pipeline service."""
 
-    def __init__(self, runs_root: Path | None = None):
+    def __init__(
+        self,
+        runs_root: Path | None = None,
+        *,
+        default_horizon_path: str | None = None,
+        default_config_path: str | None = None,
+        default_industry: str | None = None,
+        default_base_config_path: str | None = None,
+        default_industry_config_path: str | None = None,
+    ):
         self.runs_root = Path(runs_root).resolve() if runs_root else _default_runs_root().resolve()
         self._run_store: RunStore | None = None
+        self.default_selection = ConfigSelection(
+            horizon_path=default_horizon_path,
+            config_path=default_config_path,
+            industry=default_industry,
+            base_config_path=default_base_config_path,
+            industry_config_path=default_industry_config_path,
+        )
 
     @property
     def run_store(self) -> RunStore:
@@ -140,6 +170,9 @@ class HorizonPipelineService:
         self,
         horizon_path: str | None = None,
         config_path: str | None = None,
+        industry: str | None = None,
+        base_config_path: str | None = None,
+        industry_config_path: str | None = None,
         sources: list[str] | None = None,
     ) -> dict[str, Any]:
         """Return effective config after optional source filtering."""
@@ -147,11 +180,15 @@ class HorizonPipelineService:
         ctx, selected_sources, unknown_sources = self._build_context(
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
             sources=sources,
         )
         return {
             "horizon_path": str(ctx.horizon_path),
             "config_path": str(ctx.config_path),
+            "config_mode": ctx.config_mode,
             "selected_sources": selected_sources,
             "unknown_sources": unknown_sources,
             "config": ctx.config.model_dump(mode="json"),
@@ -161,12 +198,18 @@ class HorizonPipelineService:
         self,
         horizon_path: str | None = None,
         config_path: str | None = None,
+        industry: str | None = None,
+        base_config_path: str | None = None,
+        industry_config_path: str | None = None,
         sources: list[str] | None = None,
         check_env: bool = True,
     ) -> dict[str, Any]:
         ctx, selected_sources, unknown_sources = self._build_context(
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
             sources=sources,
         )
 
@@ -190,6 +233,7 @@ class HorizonPipelineService:
         return {
             "horizon_path": str(ctx.horizon_path),
             "config_path": str(ctx.config_path),
+            "config_mode": ctx.config_mode,
             "ai": {
                 "provider": ctx.config.ai.provider.value,
                 "model": ctx.config.ai.model,
@@ -213,6 +257,9 @@ class HorizonPipelineService:
         run_id: str | None = None,
         horizon_path: str | None = None,
         config_path: str | None = None,
+        industry: str | None = None,
+        base_config_path: str | None = None,
+        industry_config_path: str | None = None,
         sources: list[str] | None = None,
     ) -> dict[str, Any]:
         if hours <= 0:
@@ -221,10 +268,18 @@ class HorizonPipelineService:
         ctx, selected_sources, unknown_sources = self._build_context(
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
             sources=sources,
         )
 
-        storage = make_storage(ctx.runtime, ctx.config_path)
+        storage = make_storage(
+            ctx.runtime,
+            ctx.config_path,
+            storage_data_dir=ctx.storage_data_dir,
+            config=ctx.config,
+        )
         orchestrator = make_orchestrator(ctx.runtime, ctx.config, storage)
 
         run_id = self.run_store.create_run(run_id)
@@ -239,6 +294,12 @@ class HorizonPipelineService:
             {
                 "horizon_path": str(ctx.horizon_path),
                 "config_path": str(ctx.config_path),
+                "config_mode": ctx.config_mode,
+                "legacy_config_path": str(ctx.config_path) if ctx.config_mode == "legacy" else None,
+                "storage_data_dir": str(ctx.storage_data_dir),
+                "industry": ctx.config.industry.id,
+                "base_config_path": self._resolved_base_config_path(ctx),
+                "industry_config_path": self._resolved_industry_config_path(ctx),
                 "hours": hours,
                 "since": since.isoformat(),
                 "source_selection": selected_sources,
@@ -263,19 +324,25 @@ class HorizonPipelineService:
         source_stage: str = "raw",
         horizon_path: str | None = None,
         config_path: str | None = None,
+        industry: str | None = None,
+        base_config_path: str | None = None,
+        industry_config_path: str | None = None,
     ) -> dict[str, Any]:
         items, ctx = self._load_stage_items(
             run_id=run_id,
             stage=source_stage,
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
         )
 
         if not items:
             raise HorizonMcpError(code="HZ_EMPTY_INPUT", message="No items available for scoring.")
 
         ai_client = ctx.runtime.create_ai_client(ctx.config.ai)
-        analyzer = ctx.runtime.ContentAnalyzer(ai_client)
+        analyzer = ctx.runtime.ContentAnalyzer(ai_client, ctx.config)
         scored_items = await analyzer.analyze_batch(items)
 
         self.run_store.save_items(run_id, "scored", items_to_dicts(scored_items))
@@ -308,12 +375,18 @@ class HorizonPipelineService:
         topic_dedup: bool = True,
         horizon_path: str | None = None,
         config_path: str | None = None,
+        industry: str | None = None,
+        base_config_path: str | None = None,
+        industry_config_path: str | None = None,
     ) -> dict[str, Any]:
         items, ctx = self._load_stage_items(
             run_id=run_id,
             stage=source_stage,
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
         )
 
         effective_threshold = threshold if threshold is not None else ctx.config.filtering.ai_score_threshold
@@ -323,7 +396,12 @@ class HorizonPipelineService:
 
         before_dedup = len(important_items)
         if topic_dedup and important_items:
-            storage = make_storage(ctx.runtime, ctx.config_path)
+            storage = make_storage(
+                ctx.runtime,
+                ctx.config_path,
+                storage_data_dir=ctx.storage_data_dir,
+                config=ctx.config,
+            )
             orchestrator = make_orchestrator(ctx.runtime, ctx.config, storage)
             important_items = orchestrator.merge_topic_duplicates(important_items)
 
@@ -354,19 +432,25 @@ class HorizonPipelineService:
         source_stage: str = "filtered",
         horizon_path: str | None = None,
         config_path: str | None = None,
+        industry: str | None = None,
+        base_config_path: str | None = None,
+        industry_config_path: str | None = None,
     ) -> dict[str, Any]:
         items, ctx = self._load_stage_items(
             run_id=run_id,
             stage=source_stage,
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
         )
 
         if not items:
             raise HorizonMcpError(code="HZ_EMPTY_INPUT", message="No items available for enrichment.")
 
         ai_client = ctx.runtime.create_ai_client(ctx.config.ai)
-        enricher = ctx.runtime.ContentEnricher(ai_client)
+        enricher = ctx.runtime.ContentEnricher(ai_client, ctx.config)
         await enricher.enrich_batch(items)
 
         self.run_store.save_items(run_id, "enriched", items_to_dicts(items))
@@ -398,6 +482,9 @@ class HorizonPipelineService:
         source_stage: str | None = None,
         horizon_path: str | None = None,
         config_path: str | None = None,
+        industry: str | None = None,
+        base_config_path: str | None = None,
+        industry_config_path: str | None = None,
         save_to_horizon_data: bool = False,
     ) -> dict[str, Any]:
         stage = source_stage or self._pick_summary_stage(run_id)
@@ -406,24 +493,40 @@ class HorizonPipelineService:
             stage=stage,
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
         )
 
         total_fetched = self._total_fetched(run_id, fallback=len(items))
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
         summarizer = ctx.runtime.DailySummarizer()
+        industry_name = ctx.config.industry.name if getattr(ctx.config, "industry", None) else None
         summary = await summarizer.generate_summary(
             items,
             date_str,
             total_fetched,
             language=language,
+            industry_name=industry_name,
         )
 
         run_summary_path = self.run_store.save_summary(run_id, language, summary)
         published_path = None
         if save_to_horizon_data:
-            storage = make_storage(ctx.runtime, ctx.config_path)
-            published_path = storage.save_daily_summary(date_str, summary, language=language)
+            storage = ctx.runtime.StorageManager(
+                data_dir=str(ctx.storage_data_dir.resolve()),
+                root_dir=str(ctx.horizon_path),
+                config_path=ctx.config_path,
+                summaries_dir=ctx.config.output.summaries_dir,
+            )
+            industry_slug = ctx.config.industry.slug if ctx.config.output.include_industry_in_filename else None
+            published_path = storage.save_daily_summary(
+                date_str,
+                summary,
+                language=language,
+                industry_slug=industry_slug,
+            )
 
         summary_meta = {
             "summary_stage": stage,
@@ -454,6 +557,9 @@ class HorizonPipelineService:
         threshold: float | None = None,
         horizon_path: str | None = None,
         config_path: str | None = None,
+        industry: str | None = None,
+        base_config_path: str | None = None,
+        industry_config_path: str | None = None,
         sources: list[str] | None = None,
         enrich: bool = True,
         topic_dedup: bool = True,
@@ -463,6 +569,9 @@ class HorizonPipelineService:
             hours=hours,
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
             sources=sources,
         )
         run_id = fetch_result["run_id"]
@@ -471,6 +580,9 @@ class HorizonPipelineService:
             run_id=run_id,
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
         )
 
         filter_result = await self.filter_items(
@@ -479,6 +591,9 @@ class HorizonPipelineService:
             topic_dedup=topic_dedup,
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
         )
 
         enrich_result: dict[str, Any] | None = None
@@ -489,13 +604,20 @@ class HorizonPipelineService:
                 source_stage="filtered",
                 horizon_path=horizon_path,
                 config_path=config_path,
+                industry=industry,
+                base_config_path=base_config_path,
+                industry_config_path=industry_config_path,
             )
             stage_for_summary = "enriched"
 
         ctx, _, _ = self._build_context(
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
             sources=sources,
+            run_id=run_id,
         )
         final_languages = languages if languages else list(ctx.config.ai.languages)
 
@@ -507,6 +629,9 @@ class HorizonPipelineService:
                 source_stage=stage_for_summary,
                 horizon_path=horizon_path,
                 config_path=config_path,
+                industry=industry,
+                base_config_path=base_config_path,
+                industry_config_path=industry_config_path,
                 save_to_horizon_data=save_to_horizon_data,
             )
             summaries.append(summary_result)
@@ -525,18 +650,47 @@ class HorizonPipelineService:
         self,
         horizon_path: str | None,
         config_path: str | None,
+        industry: str | None,
+        base_config_path: str | None,
+        industry_config_path: str | None,
         sources: list[str] | None,
+        run_id: str | None = None,
     ) -> tuple[PipelineContext, list[str], list[str]]:
-        resolved_horizon = resolve_horizon_path(horizon_path)
+        selection = self._resolve_selection(
+            run_id=run_id,
+            horizon_path=horizon_path,
+            config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
+        )
+        self._validate_selection(selection)
+
+        resolved_horizon = resolve_horizon_path(selection.horizon_path)
         runtime = load_runtime(resolved_horizon)
-        resolved_config = resolve_config_path(resolved_horizon, config_path)
-        config = load_config(runtime, resolved_config)
+        loaded = load_effective_config(
+            runtime,
+            resolved_horizon,
+            config_path=selection.config_path,
+            industry=selection.industry,
+            base_config_path=selection.base_config_path,
+            industry_config_path=selection.industry_config_path,
+        )
+        resolved_config = Path(loaded.config_path).resolve()
+        storage_data_dir = Path(loaded.storage_data_dir).resolve()
+        config = loaded.config
         effective_config, selected_sources, unknown_sources = apply_source_filter(config, sources)
 
         return (
             PipelineContext(
                 horizon_path=resolved_horizon,
                 config_path=resolved_config,
+                storage_data_dir=storage_data_dir,
+                config_mode=loaded.mode,
+                base_config_path=Path(loaded.base_config_path).resolve() if loaded.base_config_path else None,
+                industry_config_path=(
+                    Path(loaded.industry_config_path).resolve() if loaded.industry_config_path else None
+                ),
                 runtime=runtime,
                 config=effective_config,
             ),
@@ -550,8 +704,19 @@ class HorizonPipelineService:
         stage: str,
         horizon_path: str | None,
         config_path: str | None,
+        industry: str | None,
+        base_config_path: str | None,
+        industry_config_path: str | None,
     ) -> tuple[list[Any], PipelineContext]:
-        ctx, _, _ = self._build_context(horizon_path=horizon_path, config_path=config_path, sources=None)
+        ctx, _, _ = self._build_context(
+            horizon_path=horizon_path,
+            config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
+            sources=None,
+            run_id=run_id,
+        )
         try:
             payload = self.run_store.load_items(run_id, stage)
         except FileNotFoundError as exc:
@@ -579,6 +744,117 @@ class HorizonPipelineService:
             return len(raw)
         except Exception:
             return fallback
+
+    def _resolve_selection(
+        self,
+        *,
+        run_id: str | None,
+        horizon_path: str | None,
+        config_path: str | None,
+        industry: str | None,
+        base_config_path: str | None,
+        industry_config_path: str | None,
+    ) -> ConfigSelection:
+        selection = ConfigSelection(
+            horizon_path=self.default_selection.horizon_path,
+            config_path=self.default_selection.config_path,
+            industry=self.default_selection.industry,
+            base_config_path=self.default_selection.base_config_path,
+            industry_config_path=self.default_selection.industry_config_path,
+        )
+
+        if run_id:
+            meta_selection = self._selection_from_run_meta(run_id)
+            selection = self._merge_selection(selection, meta_selection)
+            if (
+                meta_selection.industry is not None
+                or meta_selection.base_config_path is not None
+                or meta_selection.industry_config_path is not None
+            ):
+                selection.config_path = None
+            elif meta_selection.config_path is not None:
+                selection.industry = None
+                selection.base_config_path = None
+                selection.industry_config_path = None
+
+        if config_path is not None:
+            selection.config_path = config_path
+            selection.industry = None
+            selection.base_config_path = None
+            selection.industry_config_path = None
+
+        if industry is not None or base_config_path is not None or industry_config_path is not None:
+            selection.config_path = None
+            if industry is not None:
+                selection.industry = industry
+                if industry_config_path is None:
+                    selection.industry_config_path = None
+            if base_config_path is not None:
+                selection.base_config_path = base_config_path
+            if industry_config_path is not None:
+                selection.industry_config_path = industry_config_path
+
+        if horizon_path is not None:
+            selection.horizon_path = horizon_path
+
+        return selection
+
+    def _selection_from_run_meta(self, run_id: str) -> ConfigSelection:
+        try:
+            meta = self.run_store.load_meta(run_id)
+        except FileNotFoundError:
+            return ConfigSelection()
+
+        return ConfigSelection(
+            horizon_path=meta.get("horizon_path"),
+            config_path=meta.get("legacy_config_path"),
+            industry=meta.get("industry"),
+            base_config_path=meta.get("base_config_path"),
+            industry_config_path=meta.get("industry_config_path"),
+        )
+
+    @staticmethod
+    def _merge_selection(base: ConfigSelection, override: ConfigSelection) -> ConfigSelection:
+        return ConfigSelection(
+            horizon_path=override.horizon_path if override.horizon_path is not None else base.horizon_path,
+            config_path=override.config_path if override.config_path is not None else base.config_path,
+            industry=override.industry if override.industry is not None else base.industry,
+            base_config_path=(
+                override.base_config_path
+                if override.base_config_path is not None
+                else base.base_config_path
+            ),
+            industry_config_path=(
+                override.industry_config_path
+                if override.industry_config_path is not None
+                else base.industry_config_path
+            ),
+        )
+
+    @staticmethod
+    def _validate_selection(selection: ConfigSelection) -> None:
+        if selection.config_path and (
+            selection.industry or selection.base_config_path or selection.industry_config_path
+        ):
+            raise HorizonMcpError(
+                code="HZ_INVALID_INPUT",
+                message=(
+                    "config_path cannot be combined with industry, base_config_path, "
+                    "or industry_config_path."
+                ),
+            )
+
+    @staticmethod
+    def _resolved_base_config_path(ctx: PipelineContext) -> str | None:
+        if ctx.config_mode != "layered" or not ctx.base_config_path:
+            return None
+        return str(ctx.base_config_path)
+
+    @staticmethod
+    def _resolved_industry_config_path(ctx: PipelineContext) -> str | None:
+        if ctx.config_mode != "layered" or not ctx.industry_config_path:
+            return None
+        return str(ctx.industry_config_path)
 
     @staticmethod
     def _score_distribution(items: list[Any]) -> dict[str, int]:

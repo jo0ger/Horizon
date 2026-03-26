@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any, Awaitable, Callable
@@ -132,6 +133,9 @@ def _metrics_snapshot() -> dict[str, Any]:
 async def hz_validate_config(
     horizon_path: str | None = None,
     config_path: str | None = None,
+    industry: str | None = None,
+    base_config_path: str | None = None,
+    industry_config_path: str | None = None,
     sources: list[str] | None = None,
     check_env: bool = True,
 ) -> dict[str, Any]:
@@ -142,6 +146,9 @@ async def hz_validate_config(
         lambda: service.validate_config(
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
             sources=sources,
             check_env=check_env,
         ),
@@ -154,6 +161,9 @@ async def hz_fetch_items(
     run_id: str | None = None,
     horizon_path: str | None = None,
     config_path: str | None = None,
+    industry: str | None = None,
+    base_config_path: str | None = None,
+    industry_config_path: str | None = None,
     sources: list[str] | None = None,
 ) -> dict[str, Any]:
     """Fetch and deduplicate content into the raw stage."""
@@ -165,6 +175,9 @@ async def hz_fetch_items(
             run_id=run_id,
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
             sources=sources,
         ),
     )
@@ -176,6 +189,9 @@ async def hz_score_items(
     source_stage: str = "raw",
     horizon_path: str | None = None,
     config_path: str | None = None,
+    industry: str | None = None,
+    base_config_path: str | None = None,
+    industry_config_path: str | None = None,
 ) -> dict[str, Any]:
     """Score a stage into the scored stage."""
 
@@ -186,6 +202,9 @@ async def hz_score_items(
             source_stage=source_stage,
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
         ),
     )
 
@@ -198,6 +217,9 @@ async def hz_filter_items(
     topic_dedup: bool = True,
     horizon_path: str | None = None,
     config_path: str | None = None,
+    industry: str | None = None,
+    base_config_path: str | None = None,
+    industry_config_path: str | None = None,
 ) -> dict[str, Any]:
     """Filter scored items into the filtered stage."""
 
@@ -210,6 +232,9 @@ async def hz_filter_items(
             topic_dedup=topic_dedup,
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
         ),
     )
 
@@ -220,6 +245,9 @@ async def hz_enrich_items(
     source_stage: str = "filtered",
     horizon_path: str | None = None,
     config_path: str | None = None,
+    industry: str | None = None,
+    base_config_path: str | None = None,
+    industry_config_path: str | None = None,
 ) -> dict[str, Any]:
     """Enrich filtered items into the enriched stage."""
 
@@ -230,6 +258,9 @@ async def hz_enrich_items(
             source_stage=source_stage,
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
         ),
     )
 
@@ -241,6 +272,9 @@ async def hz_generate_summary(
     source_stage: str | None = None,
     horizon_path: str | None = None,
     config_path: str | None = None,
+    industry: str | None = None,
+    base_config_path: str | None = None,
+    industry_config_path: str | None = None,
     save_to_horizon_data: bool = False,
 ) -> dict[str, Any]:
     """Generate a markdown summary from a stage."""
@@ -253,6 +287,9 @@ async def hz_generate_summary(
             source_stage=source_stage,
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
             save_to_horizon_data=save_to_horizon_data,
         ),
     )
@@ -265,6 +302,9 @@ async def hz_run_pipeline(
     threshold: float | None = None,
     horizon_path: str | None = None,
     config_path: str | None = None,
+    industry: str | None = None,
+    base_config_path: str | None = None,
+    industry_config_path: str | None = None,
     sources: list[str] | None = None,
     enrich: bool = True,
     topic_dedup: bool = True,
@@ -280,6 +320,9 @@ async def hz_run_pipeline(
             threshold=threshold,
             horizon_path=horizon_path,
             config_path=config_path,
+            industry=industry,
+            base_config_path=base_config_path,
+            industry_config_path=industry_config_path,
             sources=sources,
             enrich=enrich,
             topic_dedup=topic_dedup,
@@ -406,6 +449,13 @@ def r_server_info() -> dict[str, Any]:
         "name": "horizon-mcp",
         "started_at": SERVER_STARTED_AT,
         "runs_root": str(service.runs_root.resolve()),
+        "default_context": {
+            "horizon_path": service.default_selection.horizon_path,
+            "config_path": service.default_selection.config_path,
+            "industry": service.default_selection.industry,
+            "base_config_path": service.default_selection.base_config_path,
+            "industry_config_path": service.default_selection.industry_config_path,
+        },
     }
 
 
@@ -463,6 +513,23 @@ def r_effective_config() -> dict[str, Any]:
 def main() -> None:
     """Run MCP server over stdio."""
 
+    global service
+
+    parser = argparse.ArgumentParser(description="Horizon MCP server")
+    parser.add_argument("--horizon-path", type=str, help="Override the Horizon repository path")
+    parser.add_argument("--config-path", type=str, help="Use a legacy single-file config path")
+    parser.add_argument("--industry", type=str, help="Default industry id for layered config")
+    parser.add_argument("--base-config", type=str, help="Override the default base config path")
+    parser.add_argument("--industry-config", type=str, help="Override the default industry config path")
+    args = parser.parse_args()
+
+    service = HorizonPipelineService(
+        default_horizon_path=args.horizon_path,
+        default_config_path=args.config_path,
+        default_industry=args.industry,
+        default_base_config_path=args.base_config,
+        default_industry_config_path=args.industry_config,
+    )
     mcp.run()
 
 
