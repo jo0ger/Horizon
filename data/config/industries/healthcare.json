@@ -14,7 +14,13 @@
         "name": "STAT",
         "url": "https://www.statnews.com/feed/",
         "enabled": true,
-        "category": "healthcare"
+        "category": "healthcare-news"
+      },
+      {
+        "name": "KFF Health News",
+        "url": "https://kffhealthnews.org/feed/",
+        "enabled": true,
+        "category": "health-policy"
       }
     ],
     "reddit": {
@@ -27,6 +33,22 @@
           "time_filter": "day",
           "fetch_limit": 15,
           "min_score": 25
+        },
+        {
+          "subreddit": "biotech",
+          "enabled": true,
+          "sort": "hot",
+          "time_filter": "day",
+          "fetch_limit": 12,
+          "min_score": 20
+        },
+        {
+          "subreddit": "healthIT",
+          "enabled": true,
+          "sort": "hot",
+          "time_filter": "day",
+          "fetch_limit": 10,
+          "min_score": 10
         }
       ],
       "users": [],

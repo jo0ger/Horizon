@@ -130,6 +130,7 @@ data/config/
   base.json
   industries/
     ai-tech.json
+    cn-animation.json
     healthcare.json
     gaming.json
 ```
@@ -138,6 +139,7 @@ data/config/
 
 - `data/config/base.json`
 - `data/config/industries/ai-tech.json`
+- `data/config/industries/cn-animation.json`
 - `data/config/industries/healthcare.json`
 - `data/config/industries/gaming.json`
 
@@ -231,6 +233,7 @@ For the full reference, see the [Configuration Guide](docs/configuration.md).
 
 ```bash
 uv run horizon --industry ai-tech                     # Run the default AI/tech config
+uv run horizon --industry cn-animation               # Run the Chinese animation config
 uv run horizon --industry healthcare                  # Run the healthcare config
 uv run horizon --industry gaming                      # Run the gaming config
 uv run horizon --industry healthcare --hours 48      # Override the time window

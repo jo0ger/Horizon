@@ -1,0 +1,103 @@
+{
+  "industry": {
+    "id": "cn-animation",
+    "name": "国产动漫",
+    "slug": "cn-animation"
+  },
+  "sources": {
+    "github": [],
+    "hackernews": {
+      "enabled": false
+    },
+    "rss": [
+      {
+        "name": "Bilibili 国创-资讯",
+        "url": "https://rsshub.rssforever.com/bilibili/partion/170",
+        "enabled": true,
+        "category": "guochuang-news"
+      },
+      {
+        "name": "Google News-国产动画定档续作官宣",
+        "url": "https://news.google.com/rss/search?q=%E5%9B%BD%E4%BA%A7%E5%8A%A8%E7%94%BB%20%E5%AE%9A%E6%A1%A3%20OR%20%E7%BB%AD%E4%BD%9C%20OR%20%E5%AE%98%E5%AE%A3&hl=zh-CN&gl=CN&ceid=CN:zh-Hans",
+        "enabled": true,
+        "category": "animation-announcement"
+      },
+      {
+        "name": "Google News-国创动画PV预告",
+        "url": "https://news.google.com/rss/search?q=%E5%9B%BD%E5%88%9B%20%E5%8A%A8%E7%94%BB%20PV%20OR%20%E9%A2%84%E5%91%8A&hl=zh-CN&gl=CN&ceid=CN:zh-Hans",
+        "enabled": true,
+        "category": "animation-pv"
+      },
+      {
+        "name": "Google News-国产动画续作第二季官宣",
+        "url": "https://news.google.com/rss/search?q=%E5%9B%BD%E4%BA%A7%E5%8A%A8%E7%94%BB%20%E7%AC%AC%E4%BA%8C%E5%AD%A3%20OR%20%E7%BB%AD%E4%BD%9C%20OR%20%E5%AE%98%E5%AE%A3&hl=zh-CN&gl=CN&ceid=CN:zh-Hans",
+        "enabled": true,
+        "category": "animation-sequel"
+      },
+      {
+        "name": "Google News-国产动画主创配音PV",
+        "url": "https://news.google.com/rss/search?q=%E5%9B%BD%E4%BA%A7%E5%8A%A8%E7%94%BB%20%E4%B8%BB%E5%88%9B%20OR%20%E9%85%8D%E9%9F%B3%20OR%20PV%20OR%20%E5%85%88%E5%AF%BC%E9%A2%84%E5%91%8A&hl=zh-CN&gl=CN&ceid=CN:zh-Hans",
+        "enabled": true,
+        "category": "animation-staff-cast"
+      },
+      {
+        "name": "Google News-国产动画电影定档",
+        "url": "https://news.google.com/rss/search?q=%E5%9B%BD%E4%BA%A7%E5%8A%A8%E7%94%BB%E7%94%B5%E5%BD%B1%20%E5%AE%9A%E6%A1%A3%20OR%20%E9%A2%84%E5%91%8A&hl=zh-CN&gl=CN&ceid=CN:zh-Hans",
+        "enabled": true,
+        "category": "animation-film"
+      }
+    ],
+    "reddit": {
+      "enabled": false,
+      "subreddits": [],
+      "users": [],
+      "fetch_comments": 0
+    },
+    "telegram": {
+      "enabled": false,
+      "channels": []
+    }
+  },
+  "filtering": {
+    "ai_score_threshold": 6.0,
+    "time_window_hours": 48
+  },
+  "profile": {
+    "audience": "关注国产动画作品情报、定档开播、PV 物料和平台排播信息的读者",
+    "score_bands": {
+      "9_10": [
+        "头部作品正式定档、开播、续作官宣、撤档，或播出平台与时间表发生重大变化",
+        "会显著影响季度追番判断、平台国创排播或作品关注度格局的关键情报"
+      ],
+      "7_8": [
+        "重点作品公布正式 PV、先导预告、主创阵容、配音名单、集数信息或平台上线窗口",
+        "对是否值得关注、何时开追、作品体量和完成度判断有明显参考价值"
+      ],
+      "5_6": [
+        "官方发布的角色海报、主题曲、单集预告、活动预告或阶段性制作进度同步",
+        "属于作品资讯，但信息增量一般，更多用于补充追番情报"
+      ],
+      "3_4": [
+        "单张海报、轻量宣发、短片段切片或重复转载的资讯",
+        "对判断作品是否值得关注和何时开追帮助较小"
+      ],
+      "0_2": [
+        "无明确来源的爆料、资源更新通知、剪辑搬运、纯享版、合集、二创混剪或儿童向泛内容",
+        "缺乏作品情报增量，也无法帮助判断作品、排播和官方动态"
+      ]
+    },
+    "scoring_focus": [
+      "作品定档、开播、续作、撤档、PV、主创阵容、配音名单与平台排播等明确情报",
+      "是否能帮助读者判断一部作品什么时候看、值不值得追、由谁制作、在哪个平台播",
+      "是否来自官方账号、平台公告、制作组、版权方或可信媒体的正式发布"
+    ],
+    "downrank_if": [
+      "只是剧情片段、短视频切片、无上下文的片段展示，缺少实质情报",
+      "以粉圈争议、情绪表达或站队讨论为主",
+      "无明确来源的爆料、资源搬运、合集、纯享版或明显非官方二创内容",
+      "与国产动漫作品资讯无关，例如泛儿童内容、跨区杂项视频或低质量转载"
+    ],
+    "concept_focus": "作品 IP、改编来源、制作公司、主创团队、配音阵容、平台排播、季度档期和企划术语等需要补充解释的概念",
+    "search_hints": ["哔哩哔哩", "腾讯视频", "优酷", "爱奇艺", "官方公告", "官方微博", "制作组"]
+  }
+}

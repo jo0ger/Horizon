@@ -17,9 +17,10 @@ from ddgs import DDGS
 from .client import AIClient
 from .prompts import (
     CONCEPT_EXTRACTION_USER,
-    CONTENT_ENRICHMENT_USER,
+    build_content_enrichment_user,
     build_concept_extraction_system,
     build_content_enrichment_system,
+    get_output_languages,
 )
 from .utils import parse_json_response
 from ..models import Config, ContentItem
@@ -31,6 +32,52 @@ class ContentEnricher:
     def __init__(self, ai_client: AIClient, config: Config | None = None):
         self.client = ai_client
         self.config = config
+
+    def _enrichment_languages(self) -> list[str]:
+        return get_output_languages(self.config)
+
+    def _primary_language(self) -> str:
+        return self._enrichment_languages()[0]
+
+    def _store_enrichment_result(
+        self,
+        item: ContentItem,
+        result: dict,
+        available_urls: dict[str, str],
+    ) -> None:
+        languages = self._enrichment_languages()
+
+        for lang in languages:
+            if result.get(f"title_{lang}"):
+                item.metadata[f"title_{lang}"] = result[f"title_{lang}"]
+
+            parts = []
+            for field in ("whats_new", "why_it_matters", "key_details"):
+                text = result.get(f"{field}_{lang}", "").strip()
+                if text:
+                    parts.append(text)
+            if parts:
+                item.metadata[f"detailed_summary_{lang}"] = " ".join(parts)
+
+            if result.get(f"background_{lang}"):
+                item.metadata[f"background_{lang}"] = result[f"background_{lang}"]
+
+            if result.get(f"community_discussion_{lang}"):
+                item.metadata[f"community_discussion_{lang}"] = result[f"community_discussion_{lang}"]
+
+        if result.get("sources") and available_urls:
+            valid = [
+                {"url": u, "title": available_urls[u]}
+                for u in result["sources"]
+                if u in available_urls
+            ]
+            if valid:
+                item.metadata["sources"] = valid
+
+        primary_language = self._primary_language()
+        item.metadata["detailed_summary"] = item.metadata.get(f"detailed_summary_{primary_language}", "")
+        item.metadata["background"] = item.metadata.get(f"background_{primary_language}", "")
+        item.metadata["community_discussion"] = item.metadata.get(f"community_discussion_{primary_language}", "")
 
     async def enrich_batch(self, items: List[ContentItem]) -> None:
         """Enrich items in-place with background knowledge.
@@ -161,7 +208,7 @@ class ContentEnricher:
         available_urls = {r["url"]: r["title"] for r in all_results if r.get("url")}
 
         # Step 3: AI generates background grounded in search results
-        user_prompt = CONTENT_ENRICHMENT_USER.format(
+        user_prompt = build_content_enrichment_user(self.config).format(
             title=item.title,
             url=str(item.url),
             summary=item.ai_summary or item.title,
@@ -187,36 +234,4 @@ class ContentEnricher:
             print(f"Warning: could not parse enrichment response for {item.id}, skipping enrichment")
             return
 
-        # Combine structured sub-fields into per-language detailed_summary
-        for lang in ("en", "zh"):
-            if result.get(f"title_{lang}"):
-                item.metadata[f"title_{lang}"] = result[f"title_{lang}"]
-
-            parts = []
-            for field in ("whats_new", "why_it_matters", "key_details"):
-                text = result.get(f"{field}_{lang}", "").strip()
-                if text:
-                    parts.append(text)
-            if parts:
-                item.metadata[f"detailed_summary_{lang}"] = " ".join(parts)
-
-            if result.get(f"background_{lang}"):
-                item.metadata[f"background_{lang}"] = result[f"background_{lang}"]
-
-            if result.get(f"community_discussion_{lang}"):
-                item.metadata[f"community_discussion_{lang}"] = result[f"community_discussion_{lang}"]
-
-        # Store citation sources — only URLs that actually came from our search results
-        if result.get("sources") and available_urls:
-            valid = [
-                {"url": u, "title": available_urls[u]}
-                for u in result["sources"]
-                if u in available_urls
-            ]
-            if valid:
-                item.metadata["sources"] = valid
-
-        # Backward-compatible fallback fields (English as default)
-        item.metadata["detailed_summary"] = item.metadata.get("detailed_summary_en", "")
-        item.metadata["background"] = item.metadata.get("background_en", "")
-        item.metadata["community_discussion"] = item.metadata.get("community_discussion_en", "")
+        self._store_enrichment_result(item, result, available_urls)

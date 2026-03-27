@@ -141,6 +141,7 @@ data/config/
   base.json
   industries/
     ai-tech.json
+    cn-animation.json
     healthcare.json
     gaming.json
 ```
@@ -149,6 +150,7 @@ data/config/
 
 - `data/config/base.json`
 - `data/config/industries/ai-tech.json`
+- `data/config/industries/cn-animation.json`
 - `data/config/industries/healthcare.json`
 - `data/config/industries/gaming.json`
 
@@ -242,6 +244,7 @@ cp data/config.example.json data/config.json  # 自定义信息源
 
 ```bash
 uv run horizon --industry ai-tech                     # 运行默认 AI 科技行业配置
+uv run horizon --industry cn-animation               # 运行国产动漫行业配置
 uv run horizon --industry healthcare                  # 运行医疗行业配置
 uv run horizon --industry gaming                      # 运行游戏行业配置
 uv run horizon --industry healthcare --hours 48      # 临时覆盖时间窗口

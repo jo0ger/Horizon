@@ -14,7 +14,19 @@
         "name": "Game Developer",
         "url": "https://www.gamedeveloper.com/rss.xml",
         "enabled": true,
-        "category": "gaming"
+        "category": "gaming-dev"
+      },
+      {
+        "name": "GamesIndustry.biz",
+        "url": "https://www.gamesindustry.biz/feed",
+        "enabled": true,
+        "category": "gaming-business"
+      },
+      {
+        "name": "Rock Paper Shotgun News",
+        "url": "https://www.rockpapershotgun.com/feed/news",
+        "enabled": true,
+        "category": "gaming-news"
       }
     ],
     "reddit": {
@@ -27,14 +39,28 @@
           "time_filter": "day",
           "fetch_limit": 20,
           "min_score": 50
+        },
+        {
+          "subreddit": "gamedev",
+          "enabled": true,
+          "sort": "hot",
+          "time_filter": "day",
+          "fetch_limit": 15,
+          "min_score": 25
         }
       ],
       "users": [],
       "fetch_comments": 5
     },
     "telegram": {
-      "enabled": false,
-      "channels": []
+      "enabled": true,
+      "channels": [
+        {
+          "channel": "InvestGameNews",
+          "enabled": true,
+          "fetch_limit": 15
+        }
+      ]
     }
   },
   "filtering": {

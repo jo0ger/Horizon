@@ -13,6 +13,41 @@ SCORE_BAND_LABELS = {
     "0_2": "0-2 分：噪音",
 }
 
+SUPPORTED_OUTPUT_LANGUAGES = ("zh", "en")
+
+ENRICHMENT_FIELD_ORDER = (
+    "title",
+    "whats_new",
+    "why_it_matters",
+    "key_details",
+    "background",
+    "community_discussion",
+)
+
+ENRICHMENT_FIELD_PLACEHOLDERS = {
+    "zh": {
+        "title": "<用中文写一个简短标题，不超过15个词>",
+        "whats_new": "<用中文写1-2句话>",
+        "why_it_matters": "<用中文写1-2句话>",
+        "key_details": "<用中文写1-2句话>",
+        "background": "<用中文写2-4句话，或空字符串>",
+        "community_discussion": "<用中文写1-3句话，或空字符串>",
+    },
+    "en": {
+        "title": "<short headline in English, ≤15 words>",
+        "whats_new": "<1-2 sentences in English>",
+        "why_it_matters": "<1-2 sentences in English>",
+        "key_details": "<1-2 sentences in English>",
+        "background": "<2-4 sentences in English, or empty string>",
+        "community_discussion": "<1-3 sentences in English, or empty string>",
+    },
+}
+
+LANGUAGE_DISPLAY = {
+    "zh": "中文",
+    "en": "英文",
+}
+
 
 def _industry(config: Config | None) -> IndustryConfig:
     if config and getattr(config, "industry", None):
@@ -24,6 +59,20 @@ def _profile(config: Config | None) -> ProfileConfig:
     if config and getattr(config, "profile", None):
         return config.profile
     return ProfileConfig()
+
+
+def get_output_languages(config: Config | None = None) -> list[str]:
+    configured = []
+    if config and getattr(config, "ai", None):
+        configured = getattr(config.ai, "languages", []) or []
+
+    resolved = []
+    for language in configured:
+        normalized = language.lower()
+        if normalized in SUPPORTED_OUTPUT_LANGUAGES and normalized not in resolved:
+            resolved.append(normalized)
+
+    return resolved or ["en"]
 
 
 def _render_score_bands(profile: ProfileConfig) -> str:
@@ -113,23 +162,85 @@ CONCEPT_EXTRACTION_USER = """这条新闻里有哪些概念值得补充解释？
 }}"""
 
 
+def _enrichment_field_listing(languages: list[str]) -> str:
+    lines = []
+    for field in ENRICHMENT_FIELD_ORDER:
+        variants = " / ".join(f"{field}_{language}" for language in languages)
+        lines.append(f"- {variants}")
+    return "\n".join(lines)
+
+
+def _enrichment_system_language_section(languages: list[str]) -> tuple[str, str]:
+    if languages == ["zh"]:
+        return (
+            "请只输出中文字段，字段名固定如下：",
+            "\n".join(
+                [
+                    "- 所有字段内容必须用简体中文书写。只有技术缩写、专有名词、产品名等可以保留英文原文。",
+                    "- 不要返回任何未要求的其他语言字段。",
+                ]
+            ),
+        )
+
+    if languages == ["en"]:
+        return (
+            "请只输出英文字段，字段名固定如下：",
+            "\n".join(
+                [
+                    "- 所有字段内容必须用英文书写。",
+                    "- 不要返回任何未要求的其他语言字段。",
+                ]
+            ),
+        )
+
+    languages_text = "和".join(LANGUAGE_DISPLAY[language] for language in languages)
+    rules = []
+    for language in languages:
+        if language == "zh":
+            rules.append("- 所有 *_zh 字段必须用简体中文书写。只有技术缩写、专有名词、产品名等可以保留英文原文。")
+        elif language == "en":
+            rules.append("- 所有 *_en 字段必须用英文书写。")
+
+    return (f"请输出{languages_text}字段，字段名固定如下：", "\n".join(rules))
+
+
+def _enrichment_user_intro(languages: list[str]) -> str:
+    return "请基于下面的新闻内容，生成结构化多语言分析。" if len(languages) > 1 else "请基于下面的新闻内容，生成结构化分析。"
+
+
+def _enrichment_user_requirements(languages: list[str]) -> str:
+    if languages == ["zh"]:
+        return "只返回合法 JSON。字段名必须保持不变，所有字段内容用简体中文书写。除 community_discussion_zh 在无评论时可为空外，其余字段都必须是完整句子："
+    if languages == ["en"]:
+        return "只返回合法 JSON。字段名必须保持不变，所有字段内容用英文书写。除 community_discussion_en 在无评论时可为空外，其余字段都必须是完整句子："
+    return "只返回合法 JSON。字段名必须保持不变；其中 *_en 用英文，*_zh 用简体中文。除 community_discussion_* 在无评论时可为空外，其余字段都必须是完整句子："
+
+
+def _enrichment_json_schema(languages: list[str]) -> str:
+    lines = []
+    for field in ENRICHMENT_FIELD_ORDER:
+        for language in languages:
+            placeholder = ENRICHMENT_FIELD_PLACEHOLDERS[language][field]
+            lines.append(f'  "{field}_{language}": "{placeholder}",')
+    lines.append('  "sources": ["<检索结果中的URL>", "..."]')
+    return "{{\n" + "\n".join(lines) + "\n}}"
+
+
 def build_content_enrichment_system(config: Config | None = None) -> str:
     industry = _industry(config)
     profile = _profile(config)
+    languages = get_output_languages(config)
     trusted_sources = "、".join(profile.search_hints) if profile.search_hints else "官方或一手来源"
+    field_intro, language_rules = _enrichment_system_language_section(languages)
+    field_listing = _enrichment_field_listing(languages)
 
     return f"""你是一名熟悉「{industry.name}」的资深分析写作者，任务是帮助读者理解重要新闻的上下文。
 
 给定一条高分新闻、原始内容和搜索结果，请生成结构化分析。
 如果搜索结果中出现 {trusted_sources} 这类来源，优先使用它们作为事实依据。
 
-请同时输出英文和中文字段，字段名固定如下：
-- title_en / title_zh
-- whats_new_en / whats_new_zh
-- why_it_matters_en / why_it_matters_zh
-- key_details_en / key_details_zh
-- background_en / background_zh
-- community_discussion_en / community_discussion_zh
+{field_intro}
+{field_listing}
 
 字段要求：
 0. title：简短标题，不超过 15 个词。
@@ -140,49 +251,40 @@ def build_content_enrichment_system(config: Config | None = None) -> str:
 5. community_discussion：1-3 句，总结评论区的主要观点、争议点或补充信息；如果没有评论可为空。
 
 语言规则：
-- 所有 *_en 字段必须用英文书写。
-- 所有 *_zh 字段必须用简体中文书写。只有技术缩写、专有名词、产品名等可以保留英文原文。
+{language_rules}
 
 其他要求：
 - 除 community_discussion 在无评论时可为空外，其余字段都必须是完整句子
 - 只能基于提供的内容和搜索结果，不要编造信息
 - 只解释新闻标题、摘要或正文中确实出现过的概念
 - 优先利用搜索结果校验近期事件和专有名词
-- 如果新闻足够直白、不需要补充背景，则 background_en / background_zh 返回空字符串
+- 如果新闻足够直白、不需要补充背景，则对应的 background 字段返回空字符串
 - sources 字段只能填写你实际使用过、且出现在搜索结果中的 URL
 """
 
 
-CONTENT_ENRICHMENT_USER = """请基于下面的新闻内容，生成结构化的双语分析。
+def build_content_enrichment_user(config: Config | None = None) -> str:
+    languages = get_output_languages(config)
+    intro = _enrichment_user_intro(languages)
+    requirements = _enrichment_user_requirements(languages)
+    schema = _enrichment_json_schema(languages)
+
+    return f"""{intro}
 
 新闻信息：
-- 标题: {title}
-- 链接: {url}
-- 一句话摘要: {summary}
-- 分数: {score}/10
-- 评分理由: {reason}
-- 标签: {tags}
+- 标题: {{title}}
+- 链接: {{url}}
+- 一句话摘要: {{summary}}
+- 分数: {{score}}/10
+- 评分理由: {{reason}}
+- 标签: {{tags}}
 
 正文：
-{content}
-{comments_section}
+{{content}}
+{{comments_section}}
 
 检索结果（用于事实校验与补充背景）：
-{web_context}
+{{web_context}}
 
-只返回合法 JSON。字段名必须保持不变；其中 *_en 用英文，*_zh 用简体中文。除 community_discussion 在无评论时可为空外，其余字段都必须是完整句子：
-{{
-  "title_en": "<英文短标题，不超过15个词>",
-  "title_zh": "<用中文写一个简短标题，不超过15个词>",
-  "whats_new_en": "<用英文写1-2句话>",
-  "whats_new_zh": "<用中文写1-2句话>",
-  "why_it_matters_en": "<用英文写1-2句话>",
-  "why_it_matters_zh": "<用中文写1-2句话>",
-  "key_details_en": "<用英文写1-2句话>",
-  "key_details_zh": "<用中文写1-2句话>",
-  "background_en": "<用英文写2-4句话，或空字符串>",
-  "background_zh": "<用中文写2-4句话，或空字符串>",
-  "community_discussion_en": "<用英文写1-3句话，或空字符串>",
-  "community_discussion_zh": "<用中文写1-3句话，或空字符串>",
-  "sources": ["<检索结果中的URL>", "..."]
-}}"""
+{requirements}
+{schema}"""
